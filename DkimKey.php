@@ -1,5 +1,4 @@
 <?php
-
 /**
  *  DkimKey.php
  *  
@@ -83,6 +82,15 @@ class DkimKey
      *  @return string
      */
     public function key()
+    {
+        return $this->key;
+    }
+    
+    /**
+     *  Cast to a string value
+     *  @return string
+     */
+    public function __toString()
     {
         return $this->key;
     }

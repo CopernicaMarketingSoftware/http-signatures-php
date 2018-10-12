@@ -1,5 +1,4 @@
 <?php
-
 /**
  *  Signature.php
  *  
@@ -18,11 +17,6 @@
 namespace Copernica;
 
 /**
- *  Dependencies
- */
-require 'DkimKey.php';
-
-/**
  *  Class definition
  */
 class Signature
@@ -34,13 +28,7 @@ class Signature
     private $keyId;
 
     /**
-     *  The key as obtained from the DNS system
-     *  @var DkimKey
-     */
-    private $key;
-
-    /**
-     *  The (decoded) signature
+     *  The actual signature
      *  @var string
      */
     private $signature;
@@ -57,31 +45,11 @@ class Signature
      */
     private $algorithm;
 
-    /**
-     *  Utility function to reconstruct the signing body
-     */
-    private function body()
-    {
-        // we start out empty
-        $body = "";
-
-        // append all relevant headers
-        foreach ($this->headers as $header)
-        {
-            // if the sign body is empty, don't post a newline
-            if (!empty($body)) $body .= "\n";
-
-            // the key in the server vars
-            $key = 'HTTP_' . str_replace('-', '_', strtoupper($header));
-
-            // add the header and its value to the sign body
-            $body .= $header . ": " . $_SERVER[$key];
-        }
-    }
 
     /**
      *  Constructor for the signature
      *  @param  line    Header field, e.g. keyId="...",algorithm="..." etc.
+     *  @throws Exception
      */
     function __construct($line)
     {
@@ -92,32 +60,94 @@ class Signature
             // split on the '=' character
             list($key, $value) = explode('=', $tuple);
 
+            // supported members
+            if (!in_array($key, array('keyId','signature','headers','algorithm'))) continue;
+
             // set the value in the key, removing string quotes
             $this->{$key} = substr($value, 1, -1);
         }
 
-        // check that this is an RSA signature
-        if (substr($this->algorithm, 0, 4) != "rsa-") throw new Exception("signature algorithm not supported");
-
-        // remove the 'rsa-' part from the algorithm
-        $this->algorithm = substr($this->algorithm, 4);
-
-        // if the keyid is not a copernica subdomain, this is not a valid signature
-        if (strlen($this->keyId) < 14 || substr($this->keyId, -14) != ".copernica.com") throw new Exception("keyId is not copernica.com subdomain");
-
         // explode the headers further
         $this->headers = explode(' ', $this->headers);
+        
+        // there are a couple of headers that must be included
+        foreach (array('(request-target)','date','digest') as $header)
+        {
+            // is it included?
+            if (!$this->contains($header)) throw new Exception("header $header not included in signature");
+        }
+    }
 
-        // find the actual key
-        $this->key = new DkimKey($keyId); 
+    /**
+     *  Utility function to reconstruct the signing body
+     *  @return string
+     */
+    private function body()
+    {
+        // we start out empty
+        $body = "";
 
-        // the required header fields
-        $required = array("(request-target)", "host", "date", "x-copernica-id", "digest");
+        // append all relevant headers
+        foreach ($this->headers as $header)
+        {
+            // @todo (request-target) is constructed in a different way
+            
+            // if the sign body is empty, don't post a newline
+            if (!empty($body)) $body .= "\n";
 
-        // verify that some important fields are actually in the header
-        if (array_diff($required, $this->headers)) throw new Exception("required header fields missing");
+            // the key in the server vars
+            $key = 'HTTP_' . str_replace('-', '_', strtoupper($header));
 
-        // and finally check the digest
-        if (openssl_verify($this->body(), $this->signature, $this->key->key(), $this->algorithm) != 1) throw new Exception("signature invalid"); 
+            // add the header and its value to the sign body
+            $body .= $header . ": " . $_SERVER[$key];
+        }
+    }
+    
+    /**
+     *  The key-ID
+     *  @return string
+     */
+    public function keyId()
+    {
+        return $this->keyId;
+    }
+    
+    /**
+     *  The headers that were included in the signature
+     *  @return array
+     */
+    public function headers()
+    {
+        return $this->headers;
+    }
+    
+    /**
+     *  Check if a specific header is included in the signature
+     *  @param  string
+     *  @return bool
+     */
+    public function contains($header)
+    {
+        return in_array($header, $this->headers);
+    }
+    
+    /**
+     *  Check if the signature is valid given a certain key
+     *  @param  string      the key to check the signature
+     *  @return bool
+     */
+    public function verify($key)
+    {
+        // split algorithm in signing algorithm and hashing algorithm
+        list($procedure, $hash) = explode('-', $this->algorithm);
+        
+        // do we need the rsa or hmac algorithm?
+        if ($this->algorithm == 'rsa') return openssl_verify($this->body(), $this->signature, $key, $hash) == 1;
+        
+        // @todo implement hmac
+        
+        // no match
+        return false;
     }
 }
+
