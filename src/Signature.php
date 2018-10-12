@@ -54,7 +54,7 @@ class Signature
     function __construct($line)
     {
         // perform a regular expression to match as much as possible
-        preg_match_all('([keyId|algorithm|headers|signature]*)="(.*?)"', $line, $matches);
+        preg_match_all('([a-zA-Z]*)="(.*?)"', $line, $matches);
 
         // @todo parse the records better, being stateful with the quotation mark
         // parse the signature fields, splitting on ',' character
@@ -62,6 +62,9 @@ class Signature
         {
             // get the key and value
             $key = $matches[$i];
+            
+            // supported members
+            if (!in_array($key, array('keyId','signature','headers','algorithm'))) continue;
 
             // set the value in the key, removing string quotes
             $this->{$key} = $matches[$i + 1];
