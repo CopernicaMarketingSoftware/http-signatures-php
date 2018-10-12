@@ -26,7 +26,7 @@ require_once(__DIR__.'/DkimKey.php');
 /**
  *  Class definition
  */
-class WebHook
+class Webhook
 {
     /**
      *  The request body
@@ -41,11 +41,11 @@ class WebHook
      *  You need to pass in the hostname that the call is supposed to go to,
      *  the path to the script and your customer ID. Inside the constructor
      *  it is checked if the call is indeed sent to this script (and is not
-     *  a replay attack). If something is wrong, an exception is thrown.
+     *  a reply attack). If something is wrong, an exception is thrown.
      * 
      *  @param  string      hostname on which the call is running
      *  @param  string      path to the script
-     *  @param  integer     customer ID
+     *  @param  integer     customer ID, either account_<id> or environment_<id>
      *  @throws Exception
      */
     function __construct($hostname, $path, $customerID)
@@ -53,14 +53,17 @@ class WebHook
         // parse the date @todo what if the header is not even set?
         $date = new DateTime($_SERVER['HTTP_DATE']);
 
-        // discard anything that is more than 5 minutes old
-        if ($date->getTimestamp() < time() - 300) throw new Exception("request older than 5 minutes");
+        // discard anything that is more than 1 minutes old. all requests are posted realtime, so this is an abitrary bound
+        if ($date->getTimestamp() < time() - 60) throw new Exception("request older than 1 minutes");
 
         // the appropriate customer-ID must be included in the call @todo what if the header is not even set?
         if ($_SERVER['HTTP_X_COPERNICA_ID'] != $customerID) throw new Exception("request for invalid customer ID");
         
-        // @todo check request path
-        // @todo check host name
+        // check the hostname
+        if ($_SERVER['HTTP_HOST'] != $hostname) throw new Exception("request for invalid host");
+        
+        // check request uri
+        if ($_SERVER['REQUEST_URI'] != $path) throw new Exception("request is not for this URI");
 
         // load the data
         $this->body = file_get_contents("php://stdin");

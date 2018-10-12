@@ -53,18 +53,18 @@ class Signature
      */
     function __construct($line)
     {
+        // perform a regular expression to match as much as possible
+        preg_match_all('([keyId|algorithm|headers|signature]*)="(.*?)"', $line, $matches);
+
         // @todo parse the records better, being stateful with the quotation mark
         // parse the signature fields, splitting on ',' character
-        foreach (explode(',', $line) as $tuple)
+        for ($i = 0; $i < count($matches); $i += 2)
         {
-            // split on the '=' character
-            list($key, $value) = explode('=', trim($tuple));
-
-            // supported members
-            if (!in_array($key, array('keyId','signature','headers','algorithm'))) continue;
+            // get the key and value
+            $key = $matches[$i];
 
             // set the value in the key, removing string quotes
-            $this->{$key} = substr($value, 1, -1);
+            $this->{$key} = $matches[$i + 1];
         }
 
         // explode the headers further
@@ -141,11 +141,12 @@ class Signature
         // split algorithm in signing algorithm and hashing algorithm
         list($procedure, $hash) = explode('-', $this->algorithm);
         
-        // do we need the rsa or hmac algorithm?
+        // do we need the rsa algorithm?
         if ($this->algorithm == 'rsa') return openssl_verify($this->body(), $this->signature, $key, $hash) == 1;
         
-        // @todo implement hmac
-        
+        // do we need the hmac algorithm?
+        if ($this->algorithm == 'hmac') return hash_hmac($hash, $this->body(), $key) == $this->signature;
+
         // no match
         return false;
     }

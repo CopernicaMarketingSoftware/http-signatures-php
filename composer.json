@@ -1,0 +1,15 @@
+{
+    "name": "copernica/webhook-security",
+    "description": "PHP lib to verify webhook security",
+    "keywords": [ "email", "copernica", "smtpeter", "webhooks", "security" ],
+    "homepage": "https://www.smtpeter.com",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=5.2.0"
+    },
+    "require-dev":{},
+    "autoload": {
+        "psr-4": { "Copernica\\": "src/" }
+    }
+}
