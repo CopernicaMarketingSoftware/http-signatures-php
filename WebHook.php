@@ -41,7 +41,7 @@ class WebHook
      *  You need to pass in the hostname that the call is supposed to go to,
      *  the path to the script and your customer ID. Inside the constructor
      *  it is checked if the call is indeed sent to this script (and is not
-     *  a reply attack). If something is wrong, an exception is thrown.
+     *  a replay attack). If something is wrong, an exception is thrown.
      * 
      *  @param  string      hostname on which the call is running
      *  @param  string      path to the script
