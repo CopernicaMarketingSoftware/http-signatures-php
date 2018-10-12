@@ -58,7 +58,7 @@ class Signature
         foreach (explode(',', $line) as $tuple)
         {
             // split on the '=' character
-            list($key, $value) = explode('=', $tuple);
+            list($key, $value) = explode('=', trim($tuple));
 
             // supported members
             if (!in_array($key, array('keyId','signature','headers','algorithm'))) continue;
