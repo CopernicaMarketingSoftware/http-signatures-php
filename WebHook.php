@@ -1,10 +1,11 @@
 <?php
-
 /**
- *  Security.php
+ *  WebHook.php
  *  
- *  Object which verifies the current HTTP request to have a valid
- *  signature, correct message digest and not too old (to prevent replay).
+ *  Class that can be used to handle incoming webcalls from copernica.com.
+ *  If you use this class to handle incoming webcalls, all calls are automatically
+ *  checked if they do indeed come from copernica.com, and not from someone
+ *  else.
  * 
  *  @author Michael van der Werve
  *  @copyright 2018 Copernica BV
@@ -25,7 +26,7 @@ require_once(__DIR__.'/DkimKey.php');
 /**
  *  Class definition
  */
-class Security 
+class WebHook
 {
     /**
      *  The request body
