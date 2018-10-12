@@ -85,7 +85,7 @@ class Webhook
         if (!$signature->contains('x-copernica-id')) throw new Exception("customer ID is not included in the signature");
         
         // check if the key-id refers to a key issued by copernica
-        if (!preg_match('/\.copernica.com$/', $signature->keyId)) throw new Exception("call is not signed by copernica.com (but by someone else)");
+        if (!preg_match('/\.copernica\.com$/', $signature->keyId)) throw new Exception("call is not signed by copernica.com (but by someone else)");
         
         // get the dkim-key
         $key = new DkimKey($signature->keyId());
