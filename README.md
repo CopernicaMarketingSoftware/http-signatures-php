@@ -22,7 +22,7 @@ composer require copernica/webhook-security
 Below is an example script that verifies the message to be authentic, 
 recent and from Copernica.
 
-```
+```php
 // Include the security header file
 require_once('Copernica/Webhook.php');
 
