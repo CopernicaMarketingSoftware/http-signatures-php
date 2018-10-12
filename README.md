@@ -23,4 +23,7 @@ require_once('WebHook.php');
 // calls are supposed to come in, the path name and your customer ID
 // (which is an integer)
 $webhook = new Copernica\WebHook("customername.com", "/path/to/script.php", 1234);
+
+// @todo process the actual data
+$data = json_decode($webhook->body());
 ```
