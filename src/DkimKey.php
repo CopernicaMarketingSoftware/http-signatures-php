@@ -1,10 +1,10 @@
 <?php
 /**
  *  DkimKey.php
- *  
+ *
  *  Helper class to obtain a Dkim key from the DNS system
  *  and expose it in PEM format.
- * 
+ *
  *  @author Michael van der Werve
  *  @copyright 2018 Copernica BV
  */
@@ -58,7 +58,7 @@ class DkimKey
             }
 
             // skip if not a dkim record
-            if ($certificate['v'] != 'DKIM1') continue; 
+            if ($certificate['v'] != 'DKIM1') continue;
 
             // set the version
             $this->version = $certificate['v'];
@@ -74,7 +74,7 @@ class DkimKey
 
         // we didn't leap out, so either there are no records or
         // none of the records was actually valid, throw an error
-        throw new Exception("no valid dkim keys found at " . $url);
+        throw new \Exception("no valid dkim keys found at " . $url);
     }
 
     /**
@@ -85,7 +85,7 @@ class DkimKey
     {
         return $this->key;
     }
-    
+
     /**
      *  Cast to a string value
      *  @return string

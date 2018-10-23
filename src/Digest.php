@@ -2,9 +2,9 @@
 
 /**
  *  Digest.php
- *  
+ *
  *  Helper class to verify `Digest: ...` header.
- * 
+ *
  *  @author Michael van der Werve
  *  @copyright 2018 Copernica BV
  */
@@ -33,19 +33,41 @@ class Digest
     private $value;
 
     /**
-     *  Construct the digest
-     *  @param  value   digest tuple, e.g. sha256=...
+     * Default constructor
+     *
      */
-    function __construct($value)
+    function __construct()
     {
-        // parse the message digest
-        list($algorithm, $encoded) = explode('=', $_SERVER['HTTP_DIGEST']);
 
-        // decode the value
-        $value = base64_decode($encoded);
     }
 
-    /** 
+    /**
+     * Get digest string for message
+     *
+     * @param      string  $body       Body of the message
+     * @param      string  $algorithm  Algorithm used for creating digest string
+     *
+     * @return     string  Digested message string
+     */
+    public function create($body, $algorithm = "sha256")
+    {
+        $algorithm = $algorithm;
+        $value = hash($algorithm, $body, true);
+        return $value;
+    }
+
+    public function read($value = null)
+    {
+        if ($value == null) {
+            // parse the message digest
+            list($algorithm, $value) = explode('=', $_SERVER['HTTP_DIGEST']);
+        }
+
+        // decode the value
+        $this->value = base64_decode($value);
+    }
+
+    /**
      *  Check if data matches to this digest
      *  @param  data
      *  @return bool
