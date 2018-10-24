@@ -25,7 +25,7 @@ class SignatureString
     /**
      * Headers in signature
      */
-    private $_headers;
+    private $_headers_arr;
 
     /**
      * Generated signature string
@@ -39,11 +39,11 @@ class SignatureString
      */
     function __construct(array $headers)
     {
-        $this->_headers = $headers;
+        $this->_headers_arr = $headers;
 
         // follow signature string creation
         $result = "";
-        foreach($this->_headers as $header){
+        foreach($this->_headers_arr as $header){
             $result .= $header->key().": ".$header->value()."\n";
         }
         $this->_signature_string = trim($result);
@@ -66,7 +66,7 @@ class SignatureString
      */
     public function headers()
     {
-        return $this->_headers;
+        return $this->_headers_arr;
     }
 }
 

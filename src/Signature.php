@@ -67,9 +67,9 @@ class Signature
      *  the HTTP header field-value pairs are concatenated together during
      *  signing.
      *
-     *  @var array
+     *  @var string
      */
-    private $_headers = [];
+    private $_headers;
 
     /**
      *  The algorithm
@@ -101,6 +101,12 @@ class Signature
      */
     private $_public_key;
 
+    /**
+     * Array for storing header objects.
+     *
+     * @var        array
+     */
+    private $_headers_arr = [];
 
     /**
      *  Constructor for the signature
@@ -113,128 +119,12 @@ class Signature
     }
 
     /**
-     * Generate signature header
-     *
-     * @param      string  $signingKey  The signing key
-     * @param      string  $message     Optional message
-     */
-    public function generate()
-    {
-        // sign message and save signature
-        openssl_sign($this->signatureString(), $this->_signature, $this->_private_key, $this->_algorithm);
-
-        // encode in base64 so it's readable
-        $this->_signature = base64_encode($this->_signature);
-
-        $this->signature = "keyID=\"".$this->keyId()."\",algorithm=\"".strtolower($this->algorithm());
-        $this->signature .= "\",headers=\"".$this->headersStr()."\",signature=\"".$this->_signature."\"";
-
-        return $this->signature;
-    }
-
-    /**
-     * Read signature from header
-     *
-     * @param  line    Header field, e.g. keyId="...",algorithm="..." etc.
-     */
-    public function read(string $signature)
-    {
-        // perform a regular expression to match as much as possible
-        preg_match_all('/([a-zA-Z]*)="(.*?)"/', $signature, $matches, PREG_SET_ORDER);
-
-        // @todo parse the records better, being stateful with the quotation mark
-        // parse the signature fields, splitting on ',' character
-        foreach ($matches as $idx => $match)
-        {
-            // get the key and value
-            $key = $match[1];
-
-            // supported members
-            if (!in_array(
-                    $key,
-                    array('keyId','signature','headers','algorithm')
-                )
-            ) continue;
-
-            // set the value in the key, removing string quotes
-            $this->{$key} = $match[2];
-        }
-
-        // explode the headers further
-        $this->headers = explode(' ', $this->headers);
-
-        // there are a couple of headers that must be included
-        foreach (array('(request-target)','date','digest') as $header)
-        {
-            // is it included?
-            if (!$this->contains($header)) throw new \Exception("header $header not included in signature");
-        }
-    }
-
-    public function addHeader(string $key, string $value = "")
-    {
-        // check if header exists, then replace it
-        foreach($this->_headers as &$header){
-            if($header->key() === $key){
-                $header->value($value);
-                return;
-            }
-        }
-        // new header
-        array_push($this->_headers, new Header($key, $value));
-    }
-
-    /**
      *  The key-ID
      *  @return string
      */
     public function keyId()
     {
         return $this->_keyId ? $this->_keyId : "";
-    }
-
-    /**
-     *  The algorithm
-     *  @return string
-     */
-    public function algorithm(string $algorithm = null)
-    {
-        if($algorithm != null){
-            // if(in_array($algorithm, \openssl_get_cipher_methods(true)))
-                $this->_algorithm = $algorithm;
-        }
-        return $this->_algorithm ? $this->_algorithm : "";
-    }
-
-    /**
-     * Getter for signature string
-     */
-    public function signatureString()
-    {
-        $signtureStr = new SignatureString($this->_headers);
-        return $signtureStr->signature();
-    }
-
-    /**
-     *  The headers that are included in the signature
-     *  @return array
-     */
-    public function headers()
-    {
-        return $this->_headers;
-    }
-
-    /**
-     *  The headers string for signature
-     *  @return array
-     */
-    public function headersStr()
-    {
-        $str = "";
-        foreach($this->_headers as $header){
-            $str .= $header->key()." ";
-        }
-        return trim($str);
     }
 
     /**
@@ -269,23 +159,141 @@ class Signature
     }
 
     /**
+     *  The algorithm
+     *  @return string
+     */
+    public function algorithm(string $algorithm = null)
+    {
+        if($algorithm != null){
+            // if(in_array($algorithm, \openssl_get_cipher_methods(true)))
+                $this->_algorithm = $algorithm;
+        }
+        return $this->_algorithm ? $this->_algorithm : "";
+    }
+
+    /**
+     * Getter for signature string
+     */
+    public function signatureString()
+    {
+        $signtureStr = new SignatureString($this->_headers_arr);
+        return $signtureStr->signature();
+    }
+
+    /**
+     *  The headers that are included in the signature
+     *  @return array
+     */
+    public function headers(bool $as_array = false)
+    {
+        if($as_array){
+            $result = [];
+            foreach($this->_headers_arr as $header){
+                if($header->key() !== "(request-target)" && $header->key() !== "host")
+                    array_push($result, $header->key().": ".$header->value());
+            }
+            return $result;
+        }
+        return $this->_headers_arr;
+    }
+
+    /**
+     *  The headers string for signature
+     *  @return array
+     */
+    public function headersStr()
+    {
+        $str = "";
+        foreach($this->_headers_arr as $header){
+            $str .= $header->key()." ";
+        }
+        return trim($str);
+    }
+
+    /**
+     * Generate signature header value
+     *
+     * @param      string  $signingKey  The signing key
+     * @param      string  $message     Optional message
+     */
+    public function generate()
+    {
+        // sign message and save signature
+        openssl_sign($this->signatureString(), $this->_signature, $this->_private_key, $this->_algorithm);
+
+        // encode in base64 so it's readable
+        $this->_signature = base64_encode($this->_signature);
+
+        $this->signature = "keyId=\"".$this->keyId()."\",algorithm=\"".strtolower($this->algorithm());
+        $this->signature .= "\",headers=\"".$this->headersStr()."\",signature=\"".$this->_signature."\"";
+
+        return $this->signature;
+    }
+
+    /**
+     * Read signature from header
+     *
+     * @param      string   $signature  The signature from request
+     *
+     * @return     boolean  true if everything ready for verification, false otherwise
+     */
+    public function read(string $signature)
+    {
+        // perform a regular expression to match as much as possible
+        preg_match_all('/([a-zA-Z]*)="(.*?)"/', $signature, $matches, PREG_SET_ORDER);
+
+        // parse the signature fields, splitting on ',' character
+        foreach ($matches as $idx => $match)
+        {
+            // get the key and value
+            $key = $match[1];
+
+            // supported members
+            if (!in_array( $key, ['keyId','signature','algorithm', 'headers'])) continue;
+
+            // set the value in the key, removing string quotes
+            $this->{"_".$key} = $match[2];
+        }
+        return true;
+    }
+
+    public function addHeader(string $key, string $value = "")
+    {
+        // check if header exists, then replace it
+        foreach($this->_headers_arr as &$header){
+            if($header->key() === $key){
+                $header->value($value);
+                return;
+            }
+        }
+        // new header
+        array_push($this->_headers_arr, new Header($key, $value));
+    }
+
+    /**
      *  Check if the signature is valid given a certain key
      *  @param  string      the key to check the signature
      *  @return bool
      */
     public function verify()
     {
+        // explode the headers for testing
+        $headers = explode(' ', $this->_headers);
+
+        // verify if all headers are added
+        foreach($this->_headers_arr as $header){
+            if(in_array($header->key(), $headers) === false)
+                return false;
+        }
+
         // split algorithm in signing algorithm and hashing algorithm
         list($procedure, $hash) = explode('-', $this->_algorithm);
 
+        if($this->_public_key === null)
+            return false;
+
         // do we need the rsa algorithm?
-        if ($this->_algorithm == 'rsa') return openssl_verify($this->body(), $this->signature, $key, $hash) == 1;
-
-        // do we need the hmac algorithm?
-        if ($this->_algorithm == 'hmac') return hash_hmac($hash, $this->body(), $key) == $this->signature;
-
-        // no match
-        return false;
+        return openssl_verify($this->signatureString(), base64_decode($this->_signature), $this->_public_key, $hash);
     }
 }
 
