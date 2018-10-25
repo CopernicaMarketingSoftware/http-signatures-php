@@ -1,5 +1,4 @@
 <?php
-
 /**
  *  Digest.php
  *
@@ -35,33 +34,17 @@ class Digest
     /**
      * Default constructor
      *
-     */
-    function __construct()
-    {
-
-    }
-
-    /**
-     * Get digest string for message
+     * @param      <type>  $header  Digest header value
      *
-     * @param      string  $body       Body of the message
-     * @param      string  $algorithm  Algorithm used for creating digest string
-     *
-     * @return     string  Digested message string
      */
-    public function create($body, $algorithm = "sha256")
+    function __construct($header = null)
     {
-        $algorithm = $algorithm;
-        $value = hash($algorithm, $body, true);
-        return $value;
-    }
-
-    public function read($value = null)
-    {
-        if ($value == null) {
-            // parse the message digest
-            list($algorithm, $value) = explode('=', $_SERVER['HTTP_DIGEST']);
+        if ($header == null) {
+            $header = $_SERVER['HTTP_DIGEST'];
         }
+
+        // parse the message digest
+        list($this->algorithm, $this->value) = explode('=', $header);
 
         // decode the value
         $this->value = base64_decode($value);
@@ -75,6 +58,6 @@ class Digest
     public function matches($data)
     {
         // hash the data and compare it
-        return hash($this->algorithm, $data, true) === $value;
+        return hash($this->algorithm, $data, true) === $this->value;
     }
 }

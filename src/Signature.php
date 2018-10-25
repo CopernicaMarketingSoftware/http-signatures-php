@@ -2,8 +2,8 @@
 /**
  *  Signature.php
  *
- *  Helper class to verify signed headers in accordance with draft-cavage-http-signatures
- *  version 10. Only does RSA for now.
+ *  Helper class for signing and verifying headers in accordance with draft-cavage-http-signatures
+ *  version 10.
  *
  *  https://tools.ietf.org/html/draft-cavage-http-signatures-10
  *
@@ -40,7 +40,7 @@ class Signature
     private $_keyId;
 
     /**
-     *  The actual signature
+     *  The actual signature base64 encoded for readability
      *
      *  REQUIRED.  The `signature` parameter is a base 64 encoded digital
      *  signature, as described in RFC 4648 [RFC4648], Section 4 [5].  The
@@ -93,11 +93,15 @@ class Signature
 
     /**
      * Private key in text form
+     *
+     * @var        string
      */
     private $_private_key;
 
     /**
      * Public key in text form
+     *
+     * @var        string
      */
     private $_public_key;
 
@@ -113,13 +117,14 @@ class Signature
      */
     function __construct()
     {
-        if (in_array('HTTP_SIGNATURE', $_SERVER)) {
+        if (in_array("HTTP_SIGNATURE", array_keys($_SERVER))) {
             $this->read($_SERVER['HTTP_SIGNATURE']);
         }
     }
 
     /**
      *  The key-ID
+     *
      *  @return string
      */
     public function keyId()
@@ -129,12 +134,19 @@ class Signature
 
     /**
      *  Check if a specific header is included in the signature
+     *
      *  @param  string
-     *  @return bool
+     *
+     *  @return boolean
      */
     public function contains($header)
     {
-        return in_array($header, $this->headers);
+        foreach($this->_headers_arr as $header_obj){
+            if((string)$header_obj == $header){
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -160,6 +172,7 @@ class Signature
 
     /**
      *  The algorithm
+     *
      *  @return string
      */
     public function algorithm(string $algorithm = null)
@@ -173,16 +186,48 @@ class Signature
 
     /**
      * Getter for signature string
+     *
+     * @return     string Signature string
      */
     public function signatureString()
     {
+        // check if headers string is available
+        if($this->_headers != null){
+            // if available, sort headers objects in same order as specified in list of headers
+            $headers = explode(' ', $this->_headers);
+
+            // copy headers array and clean it
+            $headers_arr = $this->_headers_arr;
+            $sorted = [];
+
+            // repopulate headers array in order provided
+            foreach($headers as $header){
+                foreach($headers_arr as $index => $header_obj){
+                    if((string)$header_obj == $header){
+                        array_push($sorted, $header_obj);
+
+                        // remove element so it's not checked for anymore
+                        unset($headers_arr[$index]);
+                        break;
+                    }
+                }
+            }
+            // use sorted headers array
+            $this->_headers_arr = $sorted;
+        }
+
+        // generate signature string from headers
         $signtureStr = new SignatureString($this->_headers_arr);
+
         return $signtureStr->signature();
     }
 
     /**
-     *  The headers that are included in the signature
-     *  @return array
+     * The headers that are included in the signature
+     *
+     * @param      boolean  $as_array  As array
+     *
+     * @return     string/array
      */
     public function headers(bool $as_array = false)
     {
@@ -194,12 +239,13 @@ class Signature
             }
             return $result;
         }
-        return $this->_headers_arr;
+        return $this->_headers;
     }
 
     /**
      *  The headers string for signature
-     *  @return array
+     *
+     *  @return string
      */
     public function headersStr()
     {
@@ -224,10 +270,10 @@ class Signature
         // encode in base64 so it's readable
         $this->_signature = base64_encode($this->_signature);
 
-        $this->signature = "keyId=\"".$this->keyId()."\",algorithm=\"".strtolower($this->algorithm());
-        $this->signature .= "\",headers=\"".$this->headersStr()."\",signature=\"".$this->_signature."\"";
+        $signature = "keyId=\"".$this->keyId()."\",algorithm=\"".strtolower($this->algorithm());
+        $signature .= "\",headers=\"".$this->headersStr()."\",signature=\"".$this->_signature."\"";
 
-        return $this->signature;
+        return $signature;
     }
 
     /**
@@ -257,11 +303,18 @@ class Signature
         return true;
     }
 
+    /**
+     * Adds a header to signature.
+     * These headers will be used for signature string creation.
+     *
+     * @param      string  $key    The key
+     * @param      string  $value  The value
+     */
     public function addHeader(string $key, string $value = "")
     {
         // check if header exists, then replace it
         foreach($this->_headers_arr as &$header){
-            if($header->key() === $key){
+            if((string)$header === $key){
                 $header->value($value);
                 return;
             }
@@ -272,25 +325,28 @@ class Signature
 
     /**
      *  Check if the signature is valid given a certain key
+     *
      *  @param  string      the key to check the signature
-     *  @return bool
+     *
+     *  @return integer
      */
     public function verify()
     {
+        // check if public key is loaded
+        if($this->_public_key === null)
+            return false;
+
         // explode the headers for testing
         $headers = explode(' ', $this->_headers);
 
         // verify if all headers are added
         foreach($this->_headers_arr as $header){
-            if(in_array($header->key(), $headers) === false)
+            if(in_array(strtolower($header), $headers) === false)
                 return false;
         }
 
         // split algorithm in signing algorithm and hashing algorithm
         list($procedure, $hash) = explode('-', $this->_algorithm);
-
-        if($this->_public_key === null)
-            return false;
 
         // do we need the rsa algorithm?
         return openssl_verify($this->signatureString(), base64_decode($this->_signature), $this->_public_key, $hash);

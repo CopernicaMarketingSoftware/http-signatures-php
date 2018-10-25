@@ -50,26 +50,28 @@ class Webhook
      */
     function __construct($hostname, $path, $customerID)
     {
-        // parse the date @todo what if the header is not even set?
-        $date = new \DateTime($_SERVER['HTTP_DATE']);
+        // Date header is mandatory
+        if(!in_array("HTTP_DATE", $_SERVER)) throw new \Exception("No date header set.");
 
-        // discard anything that is more than 1 minutes old. all requests are posted realtime, so this is an abitrary bound
-        if ($date->getTimestamp() < time() - 60) throw new \Exception("request older than 1 minutes");
+        // construct the signature
+        $signature = new Signature();
 
-        // the appropriate customer-ID must be included in the call @todo what if the header is not even set?
-        if ($_SERVER['HTTP_X_COPERNICA_ID'] != $customerID) throw new \Exception("request for invalid customer ID");
+        // add required headers
 
-        // check the hostname
-        if ($_SERVER['HTTP_HOST'] != $hostname) throw new \Exception("request for invalid host");
+        // date header
+        $signature->addHeader('date', $_SERVER['HTTP_DATE']);
 
-        // check request uri
-        if ($_SERVER['REQUEST_URI'] != $path) throw new \Exception("request is not for this URI");
+        // Copernica's customer id
+        $signature->addHeader('x_copernica_id', $_SERVER['HTTP_X_COPERNICA_ID']);
+
+        // request method and target
+        $signature->addHeader("(request-target)", $_SERVER['method']." ".$_SERVER['REQUEST_URI']);
+
+        // request host
+        $signature->addHeader('host', $_SERVER['HTTP_HOST']);
 
         // load the data
         $this->body = file_get_contents("php://stdin");
-
-        // do we have a digest?
-        if (!isset($_SERVER['HTTP_DIGEST'])) throw new \Exception("message digest missing");
 
         // parse the digest
         $digest = new Digest($_SERVER['HTTP_DIGEST']);
@@ -77,21 +79,17 @@ class Webhook
         // if the digest doesn't match the data, we fail
         if (!$digest->matches($this->body)) throw new \Exception("message digest mismatch");
 
-        // construct the signature
-        $signature = new Signature($_SERVER['HTTP_SIGNATURE']);
-
-        // check if the appropriate headers are included in the signature
-        if (!$signature->contains('host')) throw new \Exception("hostname is not included in the signature");
-        if (!$signature->contains('x-copernica-id')) throw new \Exception("customer ID is not included in the signature");
-
-        // check if the key-id refers to a key issued by copernica
-        if (!preg_match('/\.copernica\.com$/', $signature->keyId)) throw new \Exception("call is not signed by copernica.com (but by someone else)");
+        // add digest as header
+        $signature->addHeader('digest', $_SERVER['HTTP_DIGEST']);
 
         // get the dkim-key
         $key = new DkimKey($signature->keyId());
 
+        // add set it for signature verification
+        $signature->addPublicKey(strval($key));
+
         // verify the signature
-        if (!$signature->verify(strval($key))) throw new \Exception("signature is not valid");
+        if (!$signature->verify()) throw new \Exception("signature is not valid");
     }
 
     /**
