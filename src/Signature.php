@@ -346,10 +346,18 @@ class Signature
         }
 
         // split algorithm in signing algorithm and hashing algorithm
-        list($procedure, $hash) = explode('-', $this->_algorithm);
+        list($procedure, $hash) = explode('-', strtolower($this->_algorithm));
 
         // do we need the rsa algorithm?
-        return openssl_verify($this->signatureString(), base64_decode($this->_signature), $this->_public_key, $hash);
+        if ($procedure == 'rsa')
+            return openssl_verify($this->signatureString(), base64_decode($this->_signature), $this->_public_key, $hash) == 1;
+
+
+        // do we need the hmac algorithm?
+        if ($procedure == 'hmac')
+            return hash_hmac($hash, $this->signatureString(), $this->_public_key) == base64_decode($this->_signature);
+
+        return false;
     }
 }
 
