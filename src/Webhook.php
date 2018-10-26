@@ -38,17 +38,11 @@ class Webhook
     /**
      *  Constructor for the security object
      *
-     *  You need to pass in the hostname that the call is supposed to go to,
-     *  the path to the script and your customer ID. Inside the constructor
-     *  it is checked if the call is indeed sent to this script (and is not
-     *  a reply attack). If something is wrong, an exception is thrown.
+     *  Class will verify a call made from Copernica to the script that will instantiate it.
      *
-     *  @param  string      hostname on which the call is running
-     *  @param  string      path to the script
-     *  @param  integer     customer ID, either account_<id> or environment_<id>
      *  @throws Exception
      */
-    function __construct($hostname, $path, $customerID)
+    function __construct()
     {
         // Date header is mandatory
         if(!in_array("HTTP_DATE", $_SERVER)) throw new \Exception("No date header set.");
@@ -58,17 +52,18 @@ class Webhook
 
         // add required headers
 
+        // request method and target
+        $signature->addHeader("(request-target)", $_SERVER['method']." ".$_SERVER['REQUEST_URI']);
+
+        // request host
+        $signature->addHeader('host', $_SERVER['HTTP_HOST']);
+
         // date header
         $signature->addHeader('date', $_SERVER['HTTP_DATE']);
 
         // Copernica's customer id
         $signature->addHeader('x_copernica_id', $_SERVER['HTTP_X_COPERNICA_ID']);
 
-        // request method and target
-        $signature->addHeader("(request-target)", $_SERVER['method']." ".$_SERVER['REQUEST_URI']);
-
-        // request host
-        $signature->addHeader('host', $_SERVER['HTTP_HOST']);
 
         // load the data
         $this->body = file_get_contents("php://stdin");
