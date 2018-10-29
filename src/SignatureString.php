@@ -2,12 +2,12 @@
 /**
  *  SignatureString.php
  *
- *  Class for generating signature string from headers provided.
+ *  Class for generating the normalized input string that is going to be 
+ *  passed to the signing or verification algorithm
  *
  *  @author Radek Brzezinski
  *  @copyright 2018 Copernica BV
  */
-
 
 /**
  *  Namespace definition
@@ -20,35 +20,46 @@ namespace Copernica;
 class SignatureString
 {
     /**
-     * Generated signature string
-     *
-     * @var        string
+     *  Generated signature string
+     *  @var string
      */
-    private $_signature_string = "";
+    private $value = "";
 
     /**
-     * Constructor for the signature string
-     *
-     * @param      array  $headers  The signature headers array
+     *  Constructor for the signature string
+     *  @param  array   The headers inside the actual signature object
+     *  @param  string  The HTTP method (POST, GET, etc)
+     *  @param  string  The location of the requested resource
+     *  @param  array   Associative array with the actual headers to be sent or received
      */
-    function __construct(array $headers)
+    function __construct(array $signatureheaders, $method, $location, array $actualheaders)
     {
-        // follow signature string creation
-        foreach ($headers as $header)
+        // check the headers in the signature, and look up the actual header
+        foreach ($signatureheaders as $name)
         {
-            $this->_signature_string .= $header->key().": ".$header->value()."\n";
+            // @todo special handling for (request-type) and location?
+            
+            // look up the actual header
+            // @todo do we have to remove spaces from the value?
+            // @todo do we have to change case?
+            $value = isset($actualheaders[$name]) ? trim($actualheaders[$name]) : "";
+            
+            // add to the value
+            $this->value .= "$name: $value\n";
         }
-        $this->_signature_string = trim($this->_signature_string);
+        
+        // the last newline should be removed
+        $this->value = $this->value;
     }
-
+    
     /**
-     * Signature string getter
-     *
-     * @return     string  signature string
+     *  Get string representation
+     *  @return string
      */
-    public function signature()
+    public function __toString()
     {
-        return $this->_signature_string;
+        // get the value
+        return $this->value;
     }
 }
 

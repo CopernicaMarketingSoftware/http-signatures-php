@@ -24,88 +24,103 @@ require_once(__DIR__.'/Signature.php');
 /**
  *  Class definition
  */
-class Verifier extends Signature
+class Verifier
 {
     /**
-     * Constructor for the verifier
-     *
-     * @param      array  $headers  Array of headers for signature lookup and headers used in signature
+     *  All incoming http headers
+     *  @var array
      */
-    function __construct(array $headers = null)
-    {
-        if ($headers != null)
-        {
-            // Check if signature is in the headers
-            if (in_array("Signature", array_keys($headers)))
-            {
-                // read signature and all it's values
-                $this->readSignature($headers['Signature']);
-            }
-            // Add all headers for later use in verification
-            foreach ($headers as $key => $value)
-            {
-                $this->addHeader($key, $value);
-            }
-        }
-    }
-
+    private $headers;
+    
     /**
-     * Read signature from header
-     *
-     * @param      string   $signature  The signature from request
-     *
-     * @return     boolean  true if everything ready for verification, false otherwise
+     *  The parsed signature
+     *  @var Signature
      */
-    public function readSignature(string $signature)
+    private $signature;
+    
+    
+    /**
+     *  Constructor for the verifier
+     *  @param  string      Name of the method of the incoming call (POST, GET, et cetera)
+     *  @param  string      Location of the incoming script
+     *  @param  array       Array of all incoming HTTP headers
+     *  @throws Exception   If there was no signature, or when it could not be parsed
+     */
+    function __construct($method, $location, array $headers)
     {
-        // perform a regular expression to match as much as possible
-        preg_match_all('/([a-zA-Z]*)="(.*?)"/', $signature, $matches, PREG_SET_ORDER);
-
-        // parse the signature fields, splitting on ',' character
-        foreach ($matches as $idx => $match)
-        {
-            // get the key and value
-            $key = $match[1];
-
-            // supported members
-            if (!in_array( $key, ['keyId','signature','algorithm', 'headers'])) continue;
-
-            // set the value in the key, removing string quotes
-            $this->{"_".$key} = $match[2];
-        }
-        return true;
+        // store the headers
+        $this->headers = $headers;
+        
+        // we must have a signature header
+        // @todo do we have to handle case?
+        if (!isset($headers["Signature"])) throw new Exception("No signature found");
+        
+        // now we can parse the signature
+        $this->signature = new Signature($headers["Signature"]);
     }
-
+    
+    /**
+     *  Retrieve the key-id
+     *  This key should be used by the user to lookup the crypto-key
+     *  @return string
+     */
+    public function keyId()
+    {
+        // forward to the signature
+        return $this->signature->keyId();
+    }
+    
+    /**
+     *  The algorithm used
+     *  @return string
+     */
+    public function algorithm()
+    {
+        // forward to the signature
+        return $this->signature->algorithm();
+    }
+    
+    /**
+     *  Check if a certain header is included in the signature
+     *  It is advised to only accept signatures that contain a certain
+     *  minimal set of headers
+     *  @param  string      the name of the header
+     *  @param  string      optional required value
+     *  @return bool
+     */
+    public function contains($key, $value = null)
+    {
+        // check if the header is included in the signature
+        if (!$this->signature->contains($key)) return false;
+        
+        // does the user also want to check the value?
+        if (is_null($value)) return true;
+        
+        // check the value as well
+        // @todo handle case?
+        return isset($this->headers[$key]) && $this->headers[$key] == $value;
+    }
+    
     /**
      *  Check if the signature is valid given a certain key
-     *
+     *  The supplied key should match the algorithm and keyId
      *  @param  string      the key to check the signature
-     *
      *  @return boolean     true if signature matches, else false
      */
     public function verify(string $cryptoKey)
     {
-        // explode the headers for testing
-        $headers = explode(' ', $this->_headers);
-
-        // verify if all headers are added
-        foreach ($headers as $header)
-        {
-            if ($this->contains($header) === false) return false;
-        }
-
+        // normalize the input for the verification
+        $input = new SignatureString($this->signature->headers(), ??, ??, $this->headers);
+        
         // split algorithm in signing algorithm and hashing algorithm
-        list($procedure, $hash) = explode('-', strtolower($this->_algorithm));
+        list($procedure, $hash) = explode('-', strtolower($this->signature->algorithm));
 
         // do we need the rsa algorithm?
-        if ($procedure == 'rsa')
-            return openssl_verify($this->signatureString(), base64_decode($this->_signature), $cryptoKey, $hash) == 1;
-
-        // do we need the hmac algorithm?
-        if ($procedure == 'hmac')
-            return hash_hmac($hash, $this->signatureString(), $cryptoKey) == base64_decode($this->_signature);
-
-        return false;
+        switch ($procedure) {
+        case 'rsa':  return openssl_verify(strval($input), base64_decode($this->signature->signature()), $cryptoKey, $hash) == 1;
+        case 'hmac': return hash_hmac($hash, strval($input), $cryptoKey) == base64_decode($this->signature->signature());
+        default:     return false;
+        }
     }
 }
 

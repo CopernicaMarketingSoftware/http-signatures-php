@@ -2,8 +2,8 @@
 /**
  *  Signature.php
  *
- *  Base class for generating signature string in accordance with draft-cavage-http-signatures
- *  version 10.
+ *  Base class for generating the normalized signature string in accordance 
+ *  with draft-cavage-http-signatures version 10.
  *
  *  https://tools.ietf.org/html/draft-cavage-http-signatures-10
  *
@@ -37,7 +37,7 @@ class Signature
      *
      *  @var string
      */
-    protected $_keyId;
+    protected $keyId = null;
 
     /**
      *  The actual signature base64 encoded for readability
@@ -52,10 +52,10 @@ class Signature
      *
      *  @var string
      */
-    protected $_signature;
+    protected $signature = null;
 
     /**
-     *  The headers
+     *  The headers included in the signature
      *
      *  OPTIONAL.  The `headers` parameter is used to specify the list of
      *  HTTP headers included when generating the signature for the message.
@@ -67,52 +67,85 @@ class Signature
      *  the HTTP header field-value pairs are concatenated together during
      *  signing.
      *
-     *  @var string
+     *  @var array
      */
-    protected $_headers;
+    protected $headers = array();
 
     /**
      *  The algorithm
      *
-     * OPTIONAL.  The `algorithm` parameter is used to specify the digital
-     * signature algorithm to use when generating the signature.  Valid
-     * values for this parameter can be found in the Signature Algorithms
-     * registry located at http://www.iana.org/assignments/signature-
-     * algorithms [6] and MUST NOT be marked "deprecated".  It is preferred
-     * that the algorithm used by an implementation be derived from the key
-     * metadata identified by the `keyId` rather than from this field.  If
-     * `algorithm` is provided and differs from the key metadata identified
-     * by the `keyId` then an implementation MUST produce an error.  The
-     * `algorithm` parameter, which may be specified by an attacker, has the
-     * potential to create security vulnerabilities and will most likely be
-     * deprecated in the future.
+     *  OPTIONAL.  The `algorithm` parameter is used to specify the digital
+     *  signature algorithm to use when generating the signature.  Valid
+     *  values for this parameter can be found in the Signature Algorithms
+     *  registry located at http://www.iana.org/assignments/signature-
+     *  algorithms [6] and MUST NOT be marked "deprecated".  It is preferred
+     *  that the algorithm used by an implementation be derived from the key
+     *  metadata identified by the `keyId` rather than from this field.  If
+     *  `algorithm` is provided and differs from the key metadata identified
+     *  by the `keyId` then an implementation MUST produce an error.  The
+     *  `algorithm` parameter, which may be specified by an attacker, has the
+     *  potential to create security vulnerabilities and will most likely be
+     *  deprecated in the future.
      *
      *  @var string
      */
-    protected $_algorithm;
+    protected $algorithm = null;
+
 
     /**
-     * key that will be used in signing.
-     *
-     * @var        string
+     *  Constructor
+     *  @param  string      the optional signature to parse
+     *  @throws Exception   if an invalid signature header was passed
      */
-    protected $_cryptoKey;
+    public function __construct($signature = null)
+    {
+        // do nothing if no signature was passed
+        if (is_null($signature)) return;
+        
+        // perform a regular expression to match as much as possible
+        preg_match_all('/([a-zA-Z]*)="(.*?)"/', $signature, $matches, PREG_SET_ORDER);
 
-    /**
-     * Array for storing header objects.
-     *
-     * @var        array
-     */
-    protected $_headersArray = [];
+        // parse the signature fields, splitting on ',' character
+        foreach ($matches as $idx => $match)
+        {
+            // get the key and value
+            $key = $match[1];
+
+            // supported members
+            if (!in_array( $key, ['keyId','signature','algorithm','headers'])) continue;
+
+            // set the value in the key, removing string quotes
+            $this->$key = $match[2];
+        }
+
+        // @todo throw if not all properties were set
+        // @todo throw if algorithm was not recognized
+        
+        // the headers should be stored as array
+        $this->headers = explode(",", $this->headers);
+    }
 
     /**
      *  The key-ID getter
-     *
      *  @return string
      */
-    public function getKeyId()
+    public function keyId()
     {
-        return $this->_keyId ? $this->_keyId : "";
+        return $this->keyId;
+    }
+    
+    /**
+     *  Set the key-ID
+     *  @param  string
+     *  @return Signature
+     */
+    public function setKeyId($keyId)
+    {
+        // update the member
+        $this->keyId = $keyId;
+        
+        // allow chaining
+        return $this;
     }
 
     /**
@@ -125,139 +158,112 @@ class Signature
     public function contains($header)
     {
         // Iterate through list of available headers
-        foreach ($this->_headersArray as $header_obj)
+        foreach ($this->headers as $value)
         {
             // check if requested header is included
-            if ($header_obj->key() == $header)
-            {
-                return true;
-            }
+            if ($header == $value) return true;
         }
+        
+        // not found
         return false;
     }
-
+    
     /**
-     * The algorithm setter and getter
-     *
-     * @param      string  $algorithm  The algorithm value to be set
-     *
-     * @return     string
+     *  Add a header - you must add it in the same order as the signature string
+     *  @param  name        name of the header
+     *  @return Signature
      */
-    public function algorithm(string $algorithm = null)
+    public function addHeader($name)
     {
-        // if algorithm is provided
-        if ($algorithm != null)
-        {
-            // set it for provided value
-            $this->_algorithm = $algorithm;
-        }
+        // remove the header with the same key
+        $this->removeHeader($name);
+        
+        // add a new header
+        $this->headers[] = $name;
+        
+        // allow chaining
+        return $this;
+    }
+    
+    /**
+     *  Remove a header
+     *  @param  key
+     *  @return Signature
+     */
+    public function removeHeader($key)
+    {
+        // remove from the array (filter the array and keep all other headers)
+        $this->headers = array_filter($this->headers, function($header) use ($key) {
+            
+            return $header != $key;
+        });
+        
+        // allow chaining
+        return $this;
+    }
+    
+    /**
+     *  The algorithm getter
+     *  @param      string  $algorithm  The algorithm value to be set
+     *  @return     string
+     */
+    public function algorithm()
+    {
         // return current algorithm
-        return $this->_algorithm ? $this->_algorithm : "";
+        return $this->algorithm;
     }
 
     /**
-     * Getter for signature string
-     *
-     * @return     string Signature string
+     *  The algorithm setter and getter
+     *  @param      string  $algorithm  The algorithm value to be set
+     *  @return     Signature
      */
-    public function signatureString()
+    public function setAlgorithm(string $algorithm)
     {
-        // check if headers string is available
-        if ($this->_headers != null)
-        {
-            // if available, sort headers objects in same order as specified in list of headers
-            $headers = explode(' ', $this->_headers);
-
-            // copy headers array and clean it
-            $headersArray = $this->_headersArray;
-
-            // result array of sorted headers
-            $sorted = [];
-
-            // repopulate headers array in order provided
-            foreach ($headers as $header)
-            {
-                foreach ($headersArray as $index => $headerObj)
-                {
-                    if ($headerObj->key() == $header)
-                    {
-                        array_push($sorted, $headerObj);
-
-                        // remove element so it's not checked for anymore
-                        unset($headersArray[$index]);
-                        break;
-                    }
-                }
-            }
-            // use sorted headers array
-            $this->_headersArray = $sorted;
-        }
-
-        // generate signature string from headers
-        $signtureStr = new SignatureString($this->_headersArray);
-
-        return $signtureStr->signature();
+        // set it for provided value
+        $this->algorithm = $algorithm;
+        
+        // allow chaining
+        return $this;
     }
-
+    
     /**
-     *  Get headers that are included in the signature as array of strings "{$header}: {$key}"
-     *
-     * @param      boolean  $as_array  As array
-     *
-     * @return     string/array
-     */
-    public function headersArray()
-    {
-        $result = [];
-        // iterate over all available headers
-        foreach ($this->_headersArray as $header)
-        {
-            // include only headers that will not cause server issue
-            if ($header->key() !== "(request-target)" && $header->key() !== "host")
-                array_push($result, (string)$header);
-        }
-        return $result;
-    }
-
-    /**
-     *  The headers string that is used in a signature
-     *
+     *  Retrieve the signature
      *  @return string
      */
-    public function headersString()
+    public function signature()
     {
-        $str = "";
-        // iterate over available headers, order is important as it's used for creating signature
-        foreach ($this->_headersArray as $header)
-        {
-            // we need only header keys separated by single space character, all lowercase
-            $str .= strtolower($header->key())." ";
-        }
-        return trim($str);
+        // expose the signature
+        return $this->signature;
     }
-
+    
     /**
-     * Adds a header to signature.
-     * These headers will be used for signature string creation.
-     *
-     * @param      string  $key    New headers key
-     * @param      string  $value  New headers value
+     *  Set the signature
+     *  @param  string
+     *  @return Signature
      */
-    public function addHeader(string $key, string $value = "")
+    public function setSignature($signature)
     {
-        // check if header exists, then replace it
-        foreach ($this->_headersArray as &$header)
-        {
-            // if header already defined
-            if ($header->key() === $key)
-            {
-                // update this header value
-                $header->value($value);
-                return;
-            }
-        }
-        // new header
-        array_push($this->_headersArray, new Header($key, $value));
+        // store the signature
+        $this->signature = $signature;
+        
+        // allow chaining
+        return $this;
+    }
+    
+    /**
+     *  Return the string representation of the header
+     *  @return string
+     */
+    public function __toString()
+    {
+        // signature header created according to specification
+        return implode(",", array(
+            "keyId=\"".$this->keyId."\"",
+            "algorithm=\"".strtolower($this->algorithm)."\"",
+            "headers=\"".implode(" ", $this->headers)."\"",
+            "signature=\"".$this->signature."\""
+        ));
     }
 }
 
