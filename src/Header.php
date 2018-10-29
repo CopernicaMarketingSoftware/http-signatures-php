@@ -55,7 +55,7 @@ class Header
      */
     public function key(string $value = null)
     {
-        if($value === null)
+        if ($value === null)
             return $this->_key;
         else
             return $this->_key = $value;
@@ -70,7 +70,7 @@ class Header
      */
     public function value(string $value = null)
     {
-        if($value === null)
+        if ($value === null)
             return $this->_value;
         else
             return $this->_value = $value;
@@ -82,6 +82,6 @@ class Header
      * @return     string  String representation of the object.
      */
     public function __toString(){
-        return $this->_key;
+        return "{$this->_key}: {$this->_value}";
     }
 }
