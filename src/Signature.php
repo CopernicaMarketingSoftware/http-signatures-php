@@ -1,12 +1,12 @@
 <?php
 /**
  *  Signature.php
- *  
- *  Helper class to verify signed headers in accordance with draft-cavage-http-signatures
- *  version 10. Only does RSA for now.
- * 
+ *
+ *  Base class for generating the normalized signature string in accordance 
+ *  with draft-cavage-http-signatures version 10.
+ *
  *  https://tools.ietf.org/html/draft-cavage-http-signatures-10
- * 
+ *
  *  @author Michael van der Werve
  *  @copyright 2018 Copernica BV
  */
@@ -17,97 +17,116 @@
 namespace Copernica;
 
 /**
+ *  Dependencies
+ */
+require_once(__DIR__.'/SignatureString.php');
+require_once(__DIR__.'/Header.php');
+
+/**
  *  Class definition
  */
 class Signature
 {
     /**
      *  The key ID
+     *
+     *  REQUIRED.  The `keyId` field is an opaque string that the server can
+     *  use to look up the component they need to validate the signature.  It
+     *  could be an SSH key fingerprint, a URL to machine-readable key data,
+     *  an LDAP DN, etc.
+     *
      *  @var string
      */
-    private $keyId;
+    protected $keyId = null;
 
     /**
-     *  The actual signature
+     *  The actual signature base64 encoded for readability
+     *
+     *  REQUIRED.  The `signature` parameter is a base 64 encoded digital
+     *  signature, as described in RFC 4648 [RFC4648], Section 4 [5].  The
+     *  client uses the `algorithm` and `headers` signature parameters to
+     *  form a canonicalized `signing string`.  This `signing string` is then
+     *  signed with the key associated with `keyId` and the algorithm
+     *  corresponding to `algorithm`.  The `signature` parameter is then set
+     *  to the base 64 encoding of the signature.
+     *
      *  @var string
      */
-    private $signature;
+    protected $signature = null;
 
     /**
-     *  The headers
+     *  The headers included in the signature
+     *
+     *  OPTIONAL.  The `headers` parameter is used to specify the list of
+     *  HTTP headers included when generating the signature for the message.
+     *  If specified, it should be a lowercased, quoted list of HTTP header
+     *  fields, separated by a single space character.  If not specified,
+     *  implementations MUST operate as if the field were specified with a
+     *  single value, the `Date` header, in the list of HTTP headers.  Note
+     *  that the list order is important, and MUST be specified in the order
+     *  the HTTP header field-value pairs are concatenated together during
+     *  signing.
+     *
      *  @var array
      */
-    private $headers;
+    protected $headers = array();
 
     /**
-     *  The algorithm  
+     *  The algorithm
+     *
+     *  OPTIONAL.  The `algorithm` parameter is used to specify the digital
+     *  signature algorithm to use when generating the signature.  Valid
+     *  values for this parameter can be found in the Signature Algorithms
+     *  registry located at http://www.iana.org/assignments/signature-
+     *  algorithms [6] and MUST NOT be marked "deprecated".  It is preferred
+     *  that the algorithm used by an implementation be derived from the key
+     *  metadata identified by the `keyId` rather than from this field.  If
+     *  `algorithm` is provided and differs from the key metadata identified
+     *  by the `keyId` then an implementation MUST produce an error.  The
+     *  `algorithm` parameter, which may be specified by an attacker, has the
+     *  potential to create security vulnerabilities and will most likely be
+     *  deprecated in the future.
+     *
      *  @var string
      */
-    private $algorithm;
+    protected $algorithm = null;
 
 
     /**
-     *  Constructor for the signature
-     *  @param  line    Header field, e.g. keyId="...",algorithm="..." etc.
-     *  @throws Exception
+     *  Constructor
+     *  @param  string      the optional signature to parse
+     *  @throws Exception   if an invalid signature header was passed
      */
-    function __construct($line)
+    public function __construct($signature = null)
     {
+        // do nothing if no signature was passed
+        if (is_null($signature)) return;
+        
         // perform a regular expression to match as much as possible
-        preg_match_all('([a-zA-Z]*)="(.*?)"', $line, $matches);
+        preg_match_all('/([a-zA-Z]*)="(.*?)"/', $signature, $matches, PREG_SET_ORDER);
 
-        // @todo parse the records better, being stateful with the quotation mark
         // parse the signature fields, splitting on ',' character
-        for ($i = 0; $i < count($matches); $i += 2)
+        foreach ($matches as $idx => $match)
         {
             // get the key and value
-            $key = $matches[$i];
-            
+            $key = $match[1];
+
             // supported members
-            if (!in_array($key, array('keyId','signature','headers','algorithm'))) continue;
+            if (!in_array( $key, ['keyId','signature','algorithm','headers'])) continue;
 
             // set the value in the key, removing string quotes
-            $this->{$key} = $matches[$i + 1];
+            $this->$key = $match[2];
         }
 
-        // explode the headers further
-        $this->headers = explode(' ', $this->headers);
+        // @todo throw if not all properties were set
+        // @todo throw if algorithm was not recognized
         
-        // there are a couple of headers that must be included
-        foreach (array('(request-target)','date','digest') as $header)
-        {
-            // is it included?
-            if (!$this->contains($header)) throw new Exception("header $header not included in signature");
-        }
+        // the headers should be stored as array
+        $this->headers = explode(",", $this->headers);
     }
 
     /**
-     *  Utility function to reconstruct the signing body
-     *  @return string
-     */
-    private function body()
-    {
-        // we start out empty
-        $body = "";
-
-        // append all relevant headers
-        foreach ($this->headers as $header)
-        {
-            // @todo (request-target) is constructed in a different way
-            
-            // if the sign body is empty, don't post a newline
-            if (!empty($body)) $body .= "\n";
-
-            // the key in the server vars
-            $key = 'HTTP_' . str_replace('-', '_', strtoupper($header));
-
-            // add the header and its value to the sign body
-            $body .= $header . ": " . $_SERVER[$key];
-        }
-    }
-    
-    /**
-     *  The key-ID
+     *  The key-ID getter
      *  @return string
      */
     public function keyId()
@@ -116,42 +135,135 @@ class Signature
     }
     
     /**
-     *  The headers that were included in the signature
-     *  @return array
+     *  Set the key-ID
+     *  @param  string
+     *  @return Signature
      */
-    public function headers()
+    public function setKeyId($keyId)
     {
-        return $this->headers;
+        // update the member
+        $this->keyId = $keyId;
+        
+        // allow chaining
+        return $this;
     }
-    
+
     /**
      *  Check if a specific header is included in the signature
+     *
      *  @param  string
-     *  @return bool
+     *
+     *  @return boolean
      */
     public function contains($header)
     {
-        return in_array($header, $this->headers);
+        // Iterate through list of available headers
+        foreach ($this->headers as $value)
+        {
+            // check if requested header is included
+            if ($header == $value) return true;
+        }
+        
+        // not found
+        return false;
     }
     
     /**
-     *  Check if the signature is valid given a certain key
-     *  @param  string      the key to check the signature
-     *  @return bool
+     *  Add a header - you must add it in the same order as the signature string
+     *  @param  name        name of the header
+     *  @return Signature
      */
-    public function verify($key)
+    public function addHeader($name)
     {
-        // split algorithm in signing algorithm and hashing algorithm
-        list($procedure, $hash) = explode('-', $this->algorithm);
+        // remove the header with the same key
+        $this->removeHeader($name);
         
-        // do we need the rsa algorithm?
-        if ($this->algorithm == 'rsa') return openssl_verify($this->body(), $this->signature, $key, $hash) == 1;
+        // add a new header
+        $this->headers[] = $name;
         
-        // do we need the hmac algorithm?
-        if ($this->algorithm == 'hmac') return hash_hmac($hash, $this->body(), $key) == $this->signature;
+        // allow chaining
+        return $this;
+    }
+    
+    /**
+     *  Remove a header
+     *  @param  key
+     *  @return Signature
+     */
+    public function removeHeader($key)
+    {
+        // remove from the array (filter the array and keep all other headers)
+        $this->headers = array_filter($this->headers, function($header) use ($key) {
+            
+            return $header != $key;
+        });
+        
+        // allow chaining
+        return $this;
+    }
+    
+    /**
+     *  The algorithm getter
+     *  @param      string  $algorithm  The algorithm value to be set
+     *  @return     string
+     */
+    public function algorithm()
+    {
+        // return current algorithm
+        return $this->algorithm;
+    }
 
-        // no match
-        return false;
+    /**
+     *  The algorithm setter and getter
+     *  @param      string  $algorithm  The algorithm value to be set
+     *  @return     Signature
+     */
+    public function setAlgorithm(string $algorithm)
+    {
+        // set it for provided value
+        $this->algorithm = $algorithm;
+        
+        // allow chaining
+        return $this;
+    }
+    
+    /**
+     *  Retrieve the signature
+     *  @return string
+     */
+    public function signature()
+    {
+        // expose the signature
+        return $this->signature;
+    }
+    
+    /**
+     *  Set the signature
+     *  @param  string
+     *  @return Signature
+     */
+    public function setSignature($signature)
+    {
+        // store the signature
+        $this->signature = $signature;
+        
+        // allow chaining
+        return $this;
+    }
+    
+    /**
+     *  Return the string representation of the header
+     *  @return string
+     */
+    public function __toString()
+    {
+        // signature header created according to specification
+        return implode(",", array(
+            "keyId=\"".$this->keyId."\"",
+            "algorithm=\"".strtolower($this->algorithm)."\"",
+            "headers=\"".implode(" ", $this->headers)."\"",
+            "signature=\"".$this->signature."\""
+        ));
     }
 }
 
