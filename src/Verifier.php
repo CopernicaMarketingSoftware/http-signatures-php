@@ -58,11 +58,11 @@ class Verifier
             $method = strtolower($method);
 
             // add (request-target) header
-            $this->addHeader(["(request-target)", "{$method} {$location}"]);
+            $this->addHeader("(request-target)", "{$method} {$location}");
         }
 
         // we must have a signature header
-        if (!isset($headers["Signature"])) throw new Exception("No signature found");
+        if (!isset($headers["Signature"])) throw new \Exception("No signature found");
 
         // now we can parse the signature
         $this->signature = new Signature($headers["Signature"]);
@@ -93,10 +93,10 @@ class Verifier
      * Add a header to signature
      * @param header array [name, value]
      */
-    public function addHeader($header)
+    private function addHeader($name, $value)
     {
         // add header for signature creation
-        $this->headers[$header[0]] = $header[1];
+        $this->headers[$name] = $value;
 
         // allow chaining
         return $this;

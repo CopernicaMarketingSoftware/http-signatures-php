@@ -87,10 +87,10 @@ class Signer
      * Add a header to signature
      * @param header array [name, value]
      */
-    public function addHeader($header)
+    public function addHeader($name, $value)
     {
         // add header for signature creation
-        $this->headers[] = $header;
+        $this->headers[] = [$name, $value];
 
         // allow chaining
         return $this;

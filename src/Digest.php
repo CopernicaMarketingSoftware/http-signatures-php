@@ -47,7 +47,7 @@ class Digest
         list($this->algorithm, $this->value) = explode('=', $header);
 
         // decode the value
-        $this->value = base64_decode($value);
+        $this->value = base64_decode($this->value);
     }
 
     /**

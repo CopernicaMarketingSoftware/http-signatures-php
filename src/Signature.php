@@ -118,8 +118,8 @@ class Signature
         }
 
         // throw if not all required properties were set
-        if (is_null($this->keyId)) throw new Exception("KeyId not found in signature header");
-        if (is_null($this->signature)) throw new Exception("Signature not found in signature header");
+        if (is_null($this->keyId)) throw new \Exception("KeyId not found in signature header");
+        if (is_null($this->signature)) throw new \Exception("Signature not found in signature header");
 
         // the headers should be stored as array
         $this->headers = explode(" ", $this->headers);
