@@ -2,7 +2,7 @@
 /**
  *  Signature.php
  *
- *  Base class for generating the normalized signature string in accordance 
+ *  Base class for generating the normalized signature string in accordance
  *  with draft-cavage-http-signatures version 10.
  *
  *  https://tools.ietf.org/html/draft-cavage-http-signatures-10
@@ -20,7 +20,6 @@ namespace Copernica;
  *  Dependencies
  */
 require_once(__DIR__.'/SignatureString.php');
-require_once(__DIR__.'/Header.php');
 
 /**
  *  Class definition
@@ -101,7 +100,7 @@ class Signature
     {
         // do nothing if no signature was passed
         if (is_null($signature)) return;
-        
+
         // perform a regular expression to match as much as possible
         preg_match_all('/([a-zA-Z]*)="(.*?)"/', $signature, $matches, PREG_SET_ORDER);
 
@@ -118,11 +117,12 @@ class Signature
             $this->$key = $match[2];
         }
 
-        // @todo throw if not all properties were set
-        // @todo throw if algorithm was not recognized
-        
+        // throw if not all required properties were set
+        if (is_null($this->keyId)) throw new Exception("KeyId not found in signature header");
+        if (is_null($this->signature)) throw new Exception("Signature not found in signature header");
+
         // the headers should be stored as array
-        $this->headers = explode(",", $this->headers);
+        $this->headers = explode(" ", $this->headers);
     }
 
     /**
@@ -133,7 +133,7 @@ class Signature
     {
         return $this->keyId;
     }
-    
+
     /**
      *  Set the key-ID
      *  @param  string
@@ -143,7 +143,7 @@ class Signature
     {
         // update the member
         $this->keyId = $keyId;
-        
+
         // allow chaining
         return $this;
     }
@@ -161,13 +161,13 @@ class Signature
         foreach ($this->headers as $value)
         {
             // check if requested header is included
-            if ($header == $value) return true;
+            if (strtolower($header) == strtolower($value)) return true;
         }
-        
+
         // not found
         return false;
     }
-    
+
     /**
      *  Add a header - you must add it in the same order as the signature string
      *  @param  name        name of the header
@@ -177,14 +177,14 @@ class Signature
     {
         // remove the header with the same key
         $this->removeHeader($name);
-        
+
         // add a new header
         $this->headers[] = $name;
-        
+
         // allow chaining
         return $this;
     }
-    
+
     /**
      *  Remove a header
      *  @param  key
@@ -194,17 +194,26 @@ class Signature
     {
         // remove from the array (filter the array and keep all other headers)
         $this->headers = array_filter($this->headers, function($header) use ($key) {
-            
+
             return $header != $key;
         });
-        
+
         // allow chaining
         return $this;
     }
-    
+
+    /**
+     * Headers getter
+     * @return Headers names array
+     */
+    public function headers()
+    {
+        // return current headers
+        return $this->headers;
+    }
+
     /**
      *  The algorithm getter
-     *  @param      string  $algorithm  The algorithm value to be set
      *  @return     string
      */
     public function algorithm()
@@ -214,7 +223,7 @@ class Signature
     }
 
     /**
-     *  The algorithm setter and getter
+     *  The algorithm setter
      *  @param      string  $algorithm  The algorithm value to be set
      *  @return     Signature
      */
@@ -222,11 +231,11 @@ class Signature
     {
         // set it for provided value
         $this->algorithm = $algorithm;
-        
+
         // allow chaining
         return $this;
     }
-    
+
     /**
      *  Retrieve the signature
      *  @return string
@@ -236,7 +245,7 @@ class Signature
         // expose the signature
         return $this->signature;
     }
-    
+
     /**
      *  Set the signature
      *  @param  string
@@ -246,11 +255,11 @@ class Signature
     {
         // store the signature
         $this->signature = $signature;
-        
+
         // allow chaining
         return $this;
     }
-    
+
     /**
      *  Return the string representation of the header
      *  @return string
