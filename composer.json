@@ -1,7 +1,7 @@
 {
-    "name": "copernica/webhook-security",
+    "name": "copernica/http-signatures",
     "description": "PHP lib to verify webhook security",
-    "keywords": [ "email", "copernica", "smtpeter", "webhooks", "security" ],
+    "keywords": [ "email", "copernica", "smtpeter", "webhooks", "security", "http", "signature", "draft", "cavage" ],
     "homepage": "https://www.smtpeter.com",
     "type": "library",
     "license": "MIT",
