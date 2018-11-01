@@ -46,10 +46,10 @@ class Verifier
      *  @param  string      optional Location of the incoming script
      *  @throws Exception   If there was no signature, or when it could not be parsed
      */
-    function __construct(array $headers, string $method = null, string $location = null)
+    function __construct($headers, $method = null, $location = null)
     {
-        // store the headers
-        $this->headers = $headers;
+        // store the headers with lowercased version of keys
+        $this->headers = array_change_key_case($headers);
 
         // if $method and $location provided, (request-target) header can be added
         if (isset($method) && isset($location))
@@ -61,11 +61,11 @@ class Verifier
             $this->addHeader("(request-target)", "{$method} {$location}");
         }
 
-        // we must have a signature header
-        if (!isset($headers["Signature"])) throw new \Exception("No signature found");
+        // we need to have a "Signature" header
+        if (!isset($this->headers["signature"])) throw new \Exception("No signature found");
 
         // now we can parse the signature
-        $this->signature = new Signature($headers["Signature"]);
+        $this->signature = new Signature($this->headers["signature"]);
     }
 
     /**
@@ -138,10 +138,13 @@ class Verifier
      *  @param  string      the key to check the signature
      *  @return boolean     true if signature matches, else false
      */
-    public function verify(string $cryptoKey)
+    public function verify($cryptoKey)
     {
         // normalize the input for the verification
         $input = new SignatureString($this->signature->headers(), $this->headers);
+
+        // signature string cannot be empty
+        if (strval($input) == "") return false;
 
         // split algorithm in signing algorithm and hashing algorithm
         list($procedure, $hash) = explode('-', strtolower($this->signature->algorithm()));

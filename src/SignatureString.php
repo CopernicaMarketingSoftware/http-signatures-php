@@ -33,10 +33,20 @@ class SignatureString
      *  @param  array   The headers inside the actual signature object
      *  @param  array   Associative array with the actual headers to be sent or received
      */
-    function __construct(array $signatureheaders, array $actualheaders)
+    function __construct($signatureheaders, $actualheaders)
     {
         // change all headers names to be case insensitive
         $actualheaders = array_change_key_case($actualheaders, CASE_LOWER);
+
+        // check if $signatureheaders is empty
+        if (count($signatureheaders) == 0)
+        {
+            // we will use only a "Date" header
+            if (isset($actualheaders["date"]))
+            {
+                $this->value = "date: ".trim($actualheaders["date"]);
+            }
+        }
 
         // check the headers in the signature, and look up the actual header
         foreach ($signatureheaders as $name)

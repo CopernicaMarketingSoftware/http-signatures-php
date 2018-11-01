@@ -1,4 +1,12 @@
-# Webhook security
+# HTTP signatures for PHP
+
+This is an implementation of signing HTTP messages form a draft by M. Cavage.
+
+Full draft can be found under:
+https://datatracker.ietf.org/doc/draft-cavage-http-signatures/
+
+This project allows for creating new signatures and verifying signatures
+created using same draft.
 
 If you use a PHP scripts to process webhooks from Copernica, you can use
 the classes inside this repository to verify these incoming webhook
@@ -50,11 +58,16 @@ $signer
     ->addHeader("date", $date)
     ->addHeader("digest", $digest);
 
+// check if signature is generated
+// signature needs to have a "Date" header as minimum requirements
+if (strval($signer) == "") return;
+
 // set request headers and signature
 $headers = [
-    "date: ".$date,
-    "digest: ".$digest,
-    "Signature: ".$signer,
+    "Date: $date",
+    "Digest: $digest",
+    "Signature: $signer",
+    "Host: example.com",
     "Content-Type: application/json",
     "Content-Length: ".strlen($body)
 ];
@@ -94,9 +107,19 @@ require_once('Copernica/Digest.php');
 // get all request headers
 $headers = apache_request_headers();
 
+// variable to store digest header
+$digest_header = "";
+
+// check if "Digest" header is available
+if (isset($headers["Digest"]) && !empty($headers["Digest"]))
+{
+    // save it
+    $digest_header = $headers["Digest"];
+}
+
 // new Digest instance for digest verification
 // it is highly recommended to verify digest for message content
-$digest = new Copernica\Digest($headers["digest"]);
+$digest = new Copernica\Digest($digest_header);
 
 // get request body
 $body = file_get_contents('php://input');
@@ -114,10 +137,81 @@ if ($digest->matches($body))
     // pseudo function to get a public key using keyId provided
     $keyPub = $keyStorage->get($sign->keyId());
 
+    // check if headers is in a signature
+    if (!$sign->contains("digest")) return;
+
     // verify signature correctness
-    if (!$sign->verify($keyPub))
-    {
-        return;
-    }
+    if (!$sign->verify($keyPub)) return;
+
+    echo("Message verified!");
 }
+```
+
+## Verifying Copernica signature
+
+Below is an example script for verifying Copernica signature
+
+```php
+// Include the verifier header file
+require_once('Copernica/Verifier.php');
+
+// Include digest verification header
+require_once('Copernica/Digest.php');
+
+// Include key extraction header
+require_once('Copernica/DkimKey.php');
+
+// get all request headers
+$headers = apache_request_headers();
+
+// variable to store digest header
+$digest_header = "";
+
+// check if "Digest" header is available
+if (isset($headers["Digest"]) && !empty($headers["Digest"]))
+{
+    // save it
+    $digest_header = $headers["Digest"];
+}
+
+// check if digest header is not empty
+if (is_null($digest_header)) return;
+
+// new Digest instance for digest verification
+// it is highly recommended to verify digest for message content
+$digest = new Copernica\Digest($digest_header);
+
+// get request body
+$body = file_get_contents('php://input');
+
+// check if digest matches
+if ($digest->matches($body))
+{
+    // new verifier instance
+    $sign = new Copernica\Verifier(
+        $headers,   // all available headers
+        "POST",     // optional request method
+        "/test.php" // optional request location
+    );
+
+    // check if the appropriate headers are included in the signature
+    if (!$sign->contains('host')) return;
+    if (!$sign->contains("digest")) return;
+
+    // can also check if value is correct
+    if (!$sign->contains('x-copernica-id', "12345")) return;
+
+    // check if the key-id refers to a key issued by Copernica
+    if (!preg_match('/\.copernica\.com$/', $sign->keyId())) throw new \Exception("call is not signed by copernica.com (but by someone else)");
+
+    // get the dkim-key
+    $key = new Copernica\DkimKey($sign->keyId());
+
+    // verify signature correctness
+    if (!$sign->verify(strval($key))) return;
+
+    echo("Message verified!");
+}
+
+
 ```

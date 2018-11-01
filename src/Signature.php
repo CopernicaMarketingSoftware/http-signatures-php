@@ -227,7 +227,7 @@ class Signature
      *  @param      string  $algorithm  The algorithm value to be set
      *  @return     Signature
      */
-    public function setAlgorithm(string $algorithm)
+    public function setAlgorithm($algorithm)
     {
         // set it for provided value
         $this->algorithm = $algorithm;

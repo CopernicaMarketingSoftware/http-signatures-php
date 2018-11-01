@@ -58,7 +58,7 @@ class Signer
      *  @param      string  $method     optional The HTTP method (POST, GET, etc) for (request-target) header
      *  @param      string  $location   optional The location of the requested resource for (request-target) header
      */
-    function __construct(string $cryptoKey, string $keyId, string $algorithm, string $method = null, string $location = null)
+    function __construct($cryptoKey, $keyId, $algorithm, $method = null, $location = null)
     {
         // we start with no headers
         $this->headers = array();
@@ -140,6 +140,9 @@ class Signer
 
         // now we have to create the actual signature, start with the input-string
         $input = new SignatureString($signature->headers(),  $this->headers());
+
+        // check if signature string is not an empty string
+        if (strval($input) == "") return "";
 
         // the openssl_sign() method needs a result parameter
         $result = "";

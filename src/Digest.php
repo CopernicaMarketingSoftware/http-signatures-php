@@ -32,6 +32,22 @@ class Digest
     private $value;
 
     /**
+     * Associative list of available algorithms specified by IANA
+     * https://www.iana.org/assignments/http-dig-alg/http-dig-alg.xhtml
+     * @var        array
+     */
+    private $algorithms = array(
+        "adler32"   => "adler32",
+        "crc32c"    => "",          // not implemented
+        "md5"       => "md5",
+        "sha"       => "sha1",
+        "sha-256"   => "sha256",
+        "sha-512"   => "sha512",
+        "unixsum"   => "",          // not implemented
+        "unixcksum" => ""           // not implemented
+    );
+
+    /**
      * Default constructor
      *
      * @param      <type>  $header  Digest header value
@@ -39,15 +55,23 @@ class Digest
      */
     function __construct($header = null)
     {
-        if ($header == null) {
+        if ($header == null)
+        {
             $header = $_SERVER['HTTP_DIGEST'];
         }
 
         // parse the message digest
         list($this->algorithm, $this->value) = explode('=', $header);
 
+        // verify that algorithm is one from algorithms specified by IANA
+        if (!in_array($this->algorithm, array_keys($this->algorithms))) throw new \Exception("Invalid hashing algorithm");
+
+        // check if hashing function is available
+        if (empty($this->algorithms[$this->algorithm])) throw new \Exception("Algorithm not implemented");
+
         // decode the value
         $this->value = base64_decode($this->value);
+
     }
 
     /**
@@ -58,6 +82,6 @@ class Digest
     public function matches($data)
     {
         // hash the data and compare it
-        return hash($this->algorithm, $data, true) === $this->value;
+        return hash($this->algorithms[$this->algorithm], $data, true) === $this->value;
     }
 }
