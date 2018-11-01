@@ -81,7 +81,7 @@ class DkimKey
 
         // we didn't leap out, so either there are no records or
         // none of the records was actually valid, throw an error
-        throw new \Exception("no valid dkim keys found at " . $url);
+        throw new \Exception("No valid dkim keys found at " . $url);
     }
 
     /**
