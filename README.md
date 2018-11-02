@@ -35,7 +35,7 @@ digest, date, host and x-copernica-id headers in the signature. A signature
 that does not cover these headers is by definition invalid.
 - Read out the key-ID stored in the signature, and load the appropropriate key
 from the key storage (Copernica stores the key in DNS, so you will have to
-do a DNS lookup, but other parties may use a different technologies to
+do a DNS lookup, but other parties may use a different technology to
 share public keys or passwords).
 - Check if the signature is valid using the key loaded from storage.
 
