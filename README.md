@@ -52,7 +52,7 @@ $digest = "md5=".base64_encode(hash("md5", $body, true));
 $date = date(DateTime::RFC822);
 
 // add headers, order in which headers are added will be kept in signature
-// if request and method are provided to constructor first header will be (request-target)
+// if method and location are provided to constructor first header will be (request-target)
 $signer
     ->addHeader("host", "example.com")
     ->addHeader("date", $date)
@@ -60,7 +60,7 @@ $signer
 
 // check if signature is generated
 // signature needs to have a "Date" header as minimum requirements
-if (strval($signer) == "") return;
+if (strval($signer) == "") exit("Generated signature is empty, signature requires a \"Date\" as minimum.");
 
 // set request headers and signature
 $headers = [
@@ -104,52 +104,76 @@ require_once('Copernica/Verifier.php');
 // Include the optional digest verification header
 require_once('Copernica/Digest.php');
 
-// get all request headers
-$headers = apache_request_headers();
+// Include the optional header normalizer
+require_once('Copernica/NormalizedHeaders.php');
 
-// variable to store digest header
-$digest_header = "";
-
-// check if "Digest" header is available
-if (isset($headers["Digest"]) && !empty($headers["Digest"]))
+try
 {
-    // save it
-    $digest_header = $headers["Digest"];
-}
+    // get all request headers using helper class
+    $headers = new Copernica\NormalizedHeaders(apache_request_headers());
 
-// new Digest instance for digest verification
-// it is highly recommended to verify digest for message content
-$digest = new Copernica\Digest($digest_header);
+    // new Digest instance for digest verification
+    // it is highly recommended to verify digest for message content
+    $digest = new Copernica\Digest($headers->getHeader('digest'));
 
-// get request body
-$body = file_get_contents('php://input');
+    // get request body
+    $body = file_get_contents('php://input');
 
-// check if digest matches
-if ($digest->matches($body))
-{
+    // check if digest matches
+    if (!$digest->matches($body)) throw new Exception("Digest header mismatch");
+
     // new verifier instance
-    $sign = new Copernica\Verifier(
-        $headers,   // all available headers
-        "POST",     // optional request method
-        "/foo"      // optional request location
+    $verifier = new Copernica\Verifier(
+        $headers->getHeaders(),         // all available headers
+        $_SERVER['REQUEST_METHOD'],     // optional request method
+        $_SERVER['REQUEST_URI']         // optional request location
     );
 
-    // pseudo function to get a public key using keyId provided
-    $keyPub = $keyStorage->get($sign->keyId());
-
     // check if headers is in a signature
-    if (!$sign->contains("digest")) return;
+    if (!$verifier->contains("digest")) throw new Exception("Signature does not contains digest");
+
+    // pseudo function to get a public key using keyId provided
+    $keyPub = $keyStorage->get($verifier->keyId());
 
     // verify signature correctness
-    if (!$sign->verify($keyPub)) return;
+    if (!$verifier->verify($keyPub)) throw new Exception("Signature verification failed");
 
-    echo("Message verified!");
+    // message has been verified
+    // @todo process message body
+}
+catch (Exception $exception)
+{
+    // the incoming webhook was invalid
+    echo("Invalid webhook call: ".$exception->getMessage());
+
+    // @todo add your own handling (like logging)
 }
 ```
 
 ## Verifying Copernica signature
 
-Below is an example script for verifying Copernica signature
+>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+"SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and "OPTIONAL" in
+this document are to be interpreted as described in RFC 2119.
+
+For verification of incoming request from Copernica there are couple of items that MUST
+be checked before message can be fully trusted
+
+1. Request MUST have "Digest" header and it's content MUST match digest of request message
+2. Signature MUST be build from following headers:
+    * (request-target)
+    * host
+    * date
+    * content-length
+    * content-type
+    * x-copernica-id
+    * digest
+3. KeyID MUST point to copernica.com host
+4. Public key MUST be extracted from TXT DNS record for domain from KeyID
+
+
+Below is an example script for verifying Copernica signature.
+
 
 ```php
 // Include the verifier header file
@@ -161,57 +185,101 @@ require_once('Copernica/Digest.php');
 // Include key extraction header
 require_once('Copernica/DkimKey.php');
 
-// get all request headers
-$headers = apache_request_headers();
+// Include the optional header normalizer
+require_once('Copernica/NormalizedHeaders.php');
 
-// variable to store digest header
-$digest_header = "";
-
-// check if "Digest" header is available
-if (isset($headers["Digest"]) && !empty($headers["Digest"]))
+try
 {
-    // save it
-    $digest_header = $headers["Digest"];
-}
+    // get all request headers
+    $headers = new Copernica\NormalizedHeaders(apache_request_headers());
 
-// check if digest header is not empty
-if (is_null($digest_header)) return;
+    // Copernica always send out requests with a digest header, if it is missing, something is wrong
+    if (!$this->headers->hasHeader('digest')) throw new \Exception("Digest header is missing");
 
-// new Digest instance for digest verification
-// it is highly recommended to verify digest for message content
-$digest = new Copernica\Digest($digest_header);
+    // new Digest instance for digest verification, Copernica request always include digest header
+    $digest = new Digest($this->headers->getHeader('digest'));
 
-// get request body
-$body = file_get_contents('php://input');
+    // get request body
+    $body = file_get_contents('php://input');
 
-// check if digest matches
-if ($digest->matches($body))
-{
+    // check if digest matches
+    if (!$digest->matches($body)) throw new Exception("Digest header does not match body data");
+
     // new verifier instance
-    $sign = new Copernica\Verifier(
-        $headers,   // all available headers
-        "POST",     // optional request method
-        "/test.php" // optional request location
+    $verifier = new Copernica\Verifier(
+        $headers,                       // all available headers
+        $_SERVER['REQUEST_METHOD'],     // request method
+        $_SERVER['REQUEST_URI']         // request location
     );
 
     // check if the appropriate headers are included in the signature
-    if (!$sign->contains('host')) return;
-    if (!$sign->contains("digest")) return;
-
-    // can also check if value is correct
-    if (!$sign->contains('x-copernica-id', "12345")) return;
+    if (!$verifier->contains('Host'))
+        throw new Exception("Invalid signature: the Host header is not included in the signature");
+    if (!$verifier->contains('Date'))
+        throw new Exception("Invalid signature: the Date header is not included in the signature");
+    if (!$verifier->contains("Content-length"))
+        throw new Exception("Invalid signature: the Content-length header is not included in the signature");
+    if (!$verifier->contains("Content-type"))
+        throw new Exception("Invalid signature: the Content-type header is not included in the signature");
+    if (!$verifier->contains("X-Copernica-ID", "12345"))
+        throw new Exception("Invalid signature: the X-Copernica-ID header is not included in the signature or has an invalid value");
+    if (!$verifier->contains("Digest"))
+        throw new Exception("Invalid signature: the Digest header is not included in the signature");
 
     // check if the key-id refers to a key issued by Copernica
-    if (!preg_match('/\.copernica\.com$/', $sign->keyId())) throw new \Exception("call is not signed by copernica.com (but by someone else)");
+    if (!preg_match('/\.copernica\.com$/', $verifier->keyId()))
+        throw new \Exception("call is not signed by copernica.com (but by someone else)");
 
-    // get the dkim-key
-    $key = new Copernica\DkimKey($sign->keyId());
+    // get the dkim-key (could throw if the key could not be located in DNS, or when it was malformed)
+    $key = new Copernica\DkimKey($verifier->keyId());
 
     // verify signature correctness
-    if (!$sign->verify(strval($key))) return;
+    if (!$verifier->verify(strval($key))) return;
 
-    echo("Message verified!");
+    // message has been verified
+    // @todo process message body
+}
+catch (Exception $exception)
+{
+    // the incoming webhook was invalid / it does not seem to come from copernica.com
+    echo("Invalid webhook call: ".$exception->getMessage());
+
+    // @todo add your own handling (like logging)
 }
 
+```
+
+An helper class "Copernica\CopernicaRequest" is also provided with this implementation
+so it can be used for shorter verification process for signatures in Copernica requests.
+
+```php
+
+require_once('Copernica/CopernicaRequest.php');
+
+// an exception is thrown if the call did not come from Copernica or is invalid
+try
+{
+    // check if this is a valid request from Copernica (it throws if it isn't)
+    $result = new Copernica\CopernicaRequest(
+        apache_request_headers(),   // available HTTP headers
+        12345,                      // Copernica customer ID
+        $_SERVER['REQUEST_METHOD'], // request method
+        $_SERVER['REQUEST_URI']     // request location
+    );
+
+    // get the incoming body
+    $data = $result->getBody();
+
+    // get the content-type
+    $type = $result->getHeader('content-type');
+
+    // message has been verified
+    // @todo process message body
+}
+catch (Exception $exception)
+{
+    // the call did not come from Copernica
+    // @todo add your own handling (like logging)
+}
 
 ```

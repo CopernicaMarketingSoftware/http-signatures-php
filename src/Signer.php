@@ -1,6 +1,6 @@
 <?php
 /**
- *  Signature.php
+ *  Signer.php
  *
  *  Helper class for signing headers in accordance with draft-cavage-http-signatures
  *  version 10.
