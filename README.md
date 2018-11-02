@@ -1,6 +1,6 @@
 # HTTP signatures for PHP
 
-This is an implementation of signing HTTP messages form a draft by M. Cavage.
+This is an implementation of signing HTTP messages from a draft by M. Cavage.
 Full draft can be found under:
 https://datatracker.ietf.org/doc/draft-cavage-http-signatures/. This library 
 can be used for creating new signatures and verifying signatures created according 
