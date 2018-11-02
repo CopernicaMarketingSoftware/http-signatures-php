@@ -101,12 +101,56 @@ catch (Exception $exception)
 }
 ```
 
+## Verifying Copernica signature
 
+The signatures from Copernica must include the (request-target), host, date, content-length, 
+content-type, digest and x-copernica-id headers. This last header contains your customer ID
+that uses to ensure that the call is really dealing with your account. The public key to
+verify the signature is stored in DNS in the same format as DKIM public keys (do check
+if the key is really stored in the copernica.com domain!).
+
+To make your verification script simpler, we have included a class in this library
+that can be used for validating Copernica webhooks. It takes care of checking all
+headers, comparing the customer-ID and fetching the key from DNS:
+
+```php
+
+require_once('Copernica/CopernicaRequest.php');
+
+// an exception is thrown if the call did not come from Copernica or is invalid
+try
+{
+    // check if this is a valid request from Copernica (it throws if it isn't)
+    $result = new Copernica\CopernicaRequest(
+        apache_request_headers(),   // available HTTP headers
+        12345,                      // Copernica customer ID
+        $_SERVER['REQUEST_METHOD'], // request method
+        $_SERVER['REQUEST_URI']     // request location
+    );
+
+    // get the incoming body data
+    $data = $result->getBody();
+
+    // get the content-type
+    $type = $result->getHeader('content-type');
+
+    // message has been verified
+    // @todo process message body
+}
+catch (Exception $exception)
+{
+    // the call did not come from Copernica
+    // @todo add your own handling (like logging)
+}
+
+```
 
 ## Signing request
 
-Below is an generic example script for singing a request using cURL. You
-can use this if you want to sign outgoing HTTP requests yourself.
+This library does not only contain the technology for verifying signatures, but
+also for signing outgoing requests. This may be useful if you want to sign
+your requests too. Below is an generic example script for singing a request 
+using cURL.
 
 ```php
 // Include the signer header file
@@ -169,140 +213,5 @@ $server_output = curl_exec($ch);
 
 // close cURL
 curl_close ($ch);
-
-```
-
-
-## Verifying Copernica signature
-
->The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
-"SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and "OPTIONAL" in
-this document are to be interpreted as described in RFC 2119.
-
-For verification of incoming request from Copernica there are couple of items that MUST
-be checked before message can be fully trusted
-
-1. Request MUST have "Digest" header and it's content MUST match digest of request message
-2. Signature MUST be build from following headers:
-    * (request-target)
-    * host
-    * date
-    * content-length
-    * content-type
-    * x-copernica-id
-    * digest
-3. KeyID MUST point to copernica.com host
-4. Public key MUST be extracted from TXT DNS record for domain from KeyID
-
-
-Below is an example script for verifying Copernica signature.
-
-
-```php
-// Include the verifier header file
-require_once('Copernica/Verifier.php');
-
-// Include digest verification header
-require_once('Copernica/Digest.php');
-
-// Include key extraction header
-require_once('Copernica/DkimKey.php');
-
-// Include the optional header normalizer
-require_once('Copernica/NormalizedHeaders.php');
-
-try
-{
-    // get all request headers
-    $headers = new Copernica\NormalizedHeaders(apache_request_headers());
-
-    // Copernica always send out requests with a digest header, if it is missing, something is wrong
-    if (!$this->headers->hasHeader('digest')) throw new \Exception("Digest header is missing");
-
-    // new Digest instance for digest verification, Copernica request always include digest header
-    $digest = new Digest($this->headers->getHeader('digest'));
-
-    // get request body
-    $body = file_get_contents('php://input');
-
-    // check if digest matches
-    if (!$digest->matches($body)) throw new Exception("Digest header does not match body data");
-
-    // new verifier instance
-    $verifier = new Copernica\Verifier(
-        $headers,                       // all available headers
-        $_SERVER['REQUEST_METHOD'],     // request method
-        $_SERVER['REQUEST_URI']         // request location
-    );
-
-    // check if the appropriate headers are included in the signature
-    if (!$verifier->contains('Host'))
-        throw new Exception("Invalid signature: the Host header is not included in the signature");
-    if (!$verifier->contains('Date'))
-        throw new Exception("Invalid signature: the Date header is not included in the signature");
-    if (!$verifier->contains("Content-length"))
-        throw new Exception("Invalid signature: the Content-length header is not included in the signature");
-    if (!$verifier->contains("Content-type"))
-        throw new Exception("Invalid signature: the Content-type header is not included in the signature");
-    if (!$verifier->contains("X-Copernica-ID", "12345"))
-        throw new Exception("Invalid signature: the X-Copernica-ID header is not included in the signature or has an invalid value");
-    if (!$verifier->contains("Digest"))
-        throw new Exception("Invalid signature: the Digest header is not included in the signature");
-
-    // check if the key-id refers to a key issued by Copernica
-    if (!preg_match('/\.copernica\.com$/', $verifier->keyId()))
-        throw new \Exception("call is not signed by copernica.com (but by someone else)");
-
-    // get the dkim-key (could throw if the key could not be located in DNS, or when it was malformed)
-    $key = new Copernica\DkimKey($verifier->keyId());
-
-    // verify signature correctness
-    if (!$verifier->verify(strval($key))) return;
-
-    // message has been verified
-    // @todo process message body
-}
-catch (Exception $exception)
-{
-    // the incoming webhook was invalid / it does not seem to come from copernica.com
-    echo("Invalid webhook call: ".$exception->getMessage());
-
-    // @todo add your own handling (like logging)
-}
-
-```
-
-An helper class "Copernica\CopernicaRequest" is also provided with this implementation
-so it can be used for shorter verification process for signatures in Copernica requests.
-
-```php
-
-require_once('Copernica/CopernicaRequest.php');
-
-// an exception is thrown if the call did not come from Copernica or is invalid
-try
-{
-    // check if this is a valid request from Copernica (it throws if it isn't)
-    $result = new Copernica\CopernicaRequest(
-        apache_request_headers(),   // available HTTP headers
-        12345,                      // Copernica customer ID
-        $_SERVER['REQUEST_METHOD'], // request method
-        $_SERVER['REQUEST_URI']     // request location
-    );
-
-    // get the incoming body
-    $data = $result->getBody();
-
-    // get the content-type
-    $type = $result->getHeader('content-type');
-
-    // message has been verified
-    // @todo process message body
-}
-catch (Exception $exception)
-{
-    // the call did not come from Copernica
-    // @todo add your own handling (like logging)
-}
 
 ```
