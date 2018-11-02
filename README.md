@@ -8,18 +8,15 @@ https://datatracker.ietf.org/doc/draft-cavage-http-signatures/
 This project allows for creating new signatures and verifying signatures
 created using same draft.
 
-If you use a PHP scripts to process webhooks from Copernica, you can use
-the classes inside this repository to verify these incoming webhook
-requests.
-
-Copernica adds a digital signature to each outgoing webhook call. With
-the classes inside this repository you can automatically check this
-signature. This prevents that your webhook handling script will ever
-be fed with data that does not come from Copernica.com.
+All webhook calls from Copernica are signed using the algorithm from this
+specification. If you use a PHP scripts to process webhooks from Copernica, 
+you can therefore use the classes inside this repository to verify these 
+incoming webhook requests. But the repository is useful for others as well,
+if you want to either sign or verify HTTP requests.
 
 ## Installation
 
-Package can be installed via composer cli, executing following line.
+Package can be installed via composer cli, by executing the following command:
 
 ```
 composer require copernica/webhook-security
@@ -27,7 +24,8 @@ composer require copernica/webhook-security
 
 ## Signing request
 
-Below is an generic example script for singing a request using cURL.
+Below is an generic example script for singing a request using cURL. You
+can use this if you want to sign outgoing HTTP requests yourself.
 
 ```php
 // Include the signer header file
