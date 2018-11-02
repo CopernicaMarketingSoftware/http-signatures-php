@@ -1,12 +1,10 @@
 # HTTP signatures for PHP
 
 This is an implementation of signing HTTP messages form a draft by M. Cavage.
-
 Full draft can be found under:
-https://datatracker.ietf.org/doc/draft-cavage-http-signatures/
-
-This project allows for creating new signatures and verifying signatures
-created using same draft.
+https://datatracker.ietf.org/doc/draft-cavage-http-signatures/. This library 
+can be used for creating new signatures and verifying signatures created according 
+to the draft specification.
 
 All webhook calls from Copernica are signed using the algorithm from this
 specification. If you use a PHP scripts to process webhooks from Copernica, 
@@ -21,6 +19,89 @@ Package can be installed via composer cli, by executing the following command:
 ```
 composer require copernica/webhook-security
 ```
+
+## Verifying incoming requests
+
+Below is an generic example script for verifying signatures. If you have a script
+that processes incoming HTTP calls, and you want to verify that these calls
+indeed come from the expected source (and that the request is not forged), you
+have to take the following steps:
+
+- Create an instance of the Copernica\Verifier class to extract the signature
+from the HTTP headers.
+- Check if the signature does indeed cover the HTTP headers that you expect
+to appear in the signature. Copernica for example, always at least includes the 
+digest, date, host and x-copernica-id headers in the signature. A signature
+that does not cover these headers is by definition invalid.
+- Read out the key-ID stored in the signature, and load the appropropriate key
+from the key storage (Copernica stores the key in DNS, so you will have to
+do a DNS lookup, but other parties may use a different technologies to
+share public keys or passwords).
+- Check if the signature is valid using the key loaded from storage.
+
+In almost all cases, the signature also includes the "digest" header. To
+verify the call, you must therefore also check if the message body of the
+incoming HTTP request matches the digest header. To do this, this library
+contains a Copernica\Digest class.
+
+Note that the next example contains a _generic example_ useful for verifying
+incoming requests from _any source_. A copernica-specific example can be found
+further down in this README file.
+
+```php
+// Include the verifier header file
+require_once('Copernica/Verifier.php');
+
+// Include the optional digest verification header
+require_once('Copernica/Digest.php');
+
+// Include the optional header normalizer
+require_once('Copernica/NormalizedHeaders.php');
+
+try
+{
+    // get all request headers using helper class
+    $headers = new Copernica\NormalizedHeaders(apache_request_headers());
+
+    // new Digest instance for digest verification
+    // it is highly recommended to verify digest for message content
+    $digest = new Copernica\Digest($headers->getHeader('digest'));
+
+    // get request body
+    $body = file_get_contents('php://input');
+
+    // check if digest matches
+    if (!$digest->matches($body)) throw new Exception("Digest header mismatch");
+
+    // new verifier instance
+    $verifier = new Copernica\Verifier(
+        $headers->getHeaders(),         // all available headers
+        $_SERVER['REQUEST_METHOD'],     // optional request method
+        $_SERVER['REQUEST_URI']         // optional request location
+    );
+
+    // check if headers is in a signature
+    if (!$verifier->contains("digest")) throw new Exception("Signature does not contains digest");
+
+    // pseudo function to get a public key using keyId provided
+    $keyPub = $keyStorage->get($verifier->keyId());
+
+    // verify signature correctness
+    if (!$verifier->verify($keyPub)) throw new Exception("Signature verification failed");
+
+    // message has been verified
+    // @todo process message body
+}
+catch (Exception $exception)
+{
+    // the incoming webhook was invalid
+    echo("Invalid webhook call: ".$exception->getMessage());
+
+    // @todo add your own handling (like logging)
+}
+```
+
+
 
 ## Signing request
 
@@ -91,62 +172,6 @@ curl_close ($ch);
 
 ```
 
-## Verifying request
-
-Below is an generic example script for verifying signature.
-
-```php
-// Include the verifier header file
-require_once('Copernica/Verifier.php');
-
-// Include the optional digest verification header
-require_once('Copernica/Digest.php');
-
-// Include the optional header normalizer
-require_once('Copernica/NormalizedHeaders.php');
-
-try
-{
-    // get all request headers using helper class
-    $headers = new Copernica\NormalizedHeaders(apache_request_headers());
-
-    // new Digest instance for digest verification
-    // it is highly recommended to verify digest for message content
-    $digest = new Copernica\Digest($headers->getHeader('digest'));
-
-    // get request body
-    $body = file_get_contents('php://input');
-
-    // check if digest matches
-    if (!$digest->matches($body)) throw new Exception("Digest header mismatch");
-
-    // new verifier instance
-    $verifier = new Copernica\Verifier(
-        $headers->getHeaders(),         // all available headers
-        $_SERVER['REQUEST_METHOD'],     // optional request method
-        $_SERVER['REQUEST_URI']         // optional request location
-    );
-
-    // check if headers is in a signature
-    if (!$verifier->contains("digest")) throw new Exception("Signature does not contains digest");
-
-    // pseudo function to get a public key using keyId provided
-    $keyPub = $keyStorage->get($verifier->keyId());
-
-    // verify signature correctness
-    if (!$verifier->verify($keyPub)) throw new Exception("Signature verification failed");
-
-    // message has been verified
-    // @todo process message body
-}
-catch (Exception $exception)
-{
-    // the incoming webhook was invalid
-    echo("Invalid webhook call: ".$exception->getMessage());
-
-    // @todo add your own handling (like logging)
-}
-```
 
 ## Verifying Copernica signature
 
