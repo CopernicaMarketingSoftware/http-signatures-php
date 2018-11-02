@@ -105,7 +105,7 @@ catch (Exception $exception)
 
 The signatures from Copernica must include the (request-target), host, date, content-length, 
 content-type, digest and x-copernica-id headers. This last header contains your customer ID
-that uses to ensure that the call is really dealing with your account. The public key to
+that Copernica uses to ensure that the call is really related to your account. The public key to
 verify the signature is stored in DNS in the same format as DKIM public keys (do check
 if the key is really stored in the copernica.com domain!).
 
