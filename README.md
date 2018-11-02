@@ -1,13 +1,13 @@
 # HTTP signatures for PHP
 
-This is an implementation of signing HTTP messages from a draft by M. Cavage.
-Full draft can be found under:
+This is an implementation of signing HTTP messages described in a draft by M. Cavage.
+The full draft can be found here:
 https://datatracker.ietf.org/doc/draft-cavage-http-signatures/. This library 
 can be used for creating new signatures and verifying signatures created according 
 to the draft specification.
 
 All webhook calls from Copernica are signed using the algorithm from this
-specification. If you use a PHP scripts to process webhooks from Copernica, 
+specification. If you use a PHP script to process webhooks from Copernica, 
 you can therefore use the classes inside this repository to verify these 
 incoming webhook requests. But the repository is useful for others as well,
 if you want to either sign or verify HTTP requests.
