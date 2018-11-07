@@ -2,13 +2,13 @@
 
 This is an implementation of signing HTTP messages described in a draft by M. Cavage.
 The full draft can be found here:
-https://datatracker.ietf.org/doc/draft-cavage-http-signatures/. This library 
-can be used for creating new signatures and verifying signatures created according 
+https://datatracker.ietf.org/doc/draft-cavage-http-signatures/. This library
+can be used for creating new signatures and verifying signatures created according
 to the draft specification.
 
 All webhook calls from Copernica are signed using the algorithm from this
-specification. If you use a PHP script to process webhooks from Copernica, 
-you can therefore use the classes inside this repository to verify these 
+specification. If you use a PHP script to process webhooks from Copernica,
+you can therefore use the classes inside this repository to verify these
 incoming webhook requests. But the repository is useful for others as well,
 if you want to either sign or verify HTTP requests.
 
@@ -30,7 +30,7 @@ have to take the following steps:
 - Create an instance of the Copernica\Verifier class to extract the signature
 from the HTTP headers.
 - Check if the signature does indeed cover the HTTP headers that you expect
-to appear in the signature. Copernica for example, always at least includes the 
+to appear in the signature. Copernica for example, always at least includes the
 digest, date, host and x-copernica-id headers in the signature. A signature
 that does not cover these headers is by definition invalid.
 - Read out the key-ID stored in the signature, and load the appropropriate key
@@ -103,7 +103,7 @@ catch (Exception $exception)
 
 ## Verifying Copernica signature
 
-The signatures from Copernica must include the (request-target), host, date, content-length, 
+The signatures from Copernica must include the (request-target), host, date, content-length,
 content-type, digest and x-copernica-id headers. This last header contains your customer ID
 that Copernica uses to ensure that the call is really related to your account. The public key to
 verify the signature is stored in DNS in the same format as DKIM public keys (do check
@@ -123,7 +123,7 @@ try
     // check if this is a valid request from Copernica (it throws if it isn't)
     $result = new Copernica\CopernicaRequest(
         apache_request_headers(),   // available HTTP headers
-        12345,                      // Copernica customer ID
+        'account_12345',            // Copernica customer ID
         $_SERVER['REQUEST_METHOD'], // request method
         $_SERVER['REQUEST_URI']     // request location
     );
@@ -149,7 +149,7 @@ catch (Exception $exception)
 
 This library does not only contain the technology for verifying signatures, but
 also for signing outgoing requests. This may be useful if you want to sign
-your requests too. Below is an generic example script for singing a request 
+your requests too. Below is an generic example script for singing a request
 using cURL.
 
 ```php

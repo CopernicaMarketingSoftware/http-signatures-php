@@ -33,11 +33,6 @@ class CopernicaRequest
      */
     private $body;
 
-
-    /**
-     * Allowed 'x-copernica-id' prefixes
-     */
-    private $idPrefixes = array('account', 'environment');
     /**
      *  Default constructor
      *
@@ -71,14 +66,6 @@ class CopernicaRequest
         if (!$this->headers->hasHeader('x-copernica-id'))
             throw new \Exception("Copernica id header is missing");
 
-
-        // get prefix and id from Copernica header
-        list($prefix, $accountId) = explode('_', $this->headers->getHeader('x-copernica-id'));
-
-        // check if prefix is allowed and account is numeric
-        if (!in_array($prefix, $this->idPrefixes) || !is_numeric($accountId))
-            throw new \Exception("Copernica id header is invalid");
-
         // new Digest instance for digest verification, Copernica request always include digest header
         $digest = new Digest($this->headers->getHeader('digest'));
 
@@ -111,7 +98,7 @@ class CopernicaRequest
             throw new \Exception("Invalid signature: nonce header is not included in the signature");
 
         // can also check if value is correct
-        if (!$verifier->contains('x-copernica-id', $prefix.'_'.strval($copernicaId)))
+        if (!$verifier->contains('x-copernica-id', $copernicaId))
             throw new \Exception('invalid signature: the x-copernica-id header is not included in the signature or has an invalid value');
 
         // // check if the key-id refers to a key issued by Copernica
