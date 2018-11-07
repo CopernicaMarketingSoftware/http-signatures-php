@@ -32,6 +32,7 @@ class CopernicaRequest
      * Message body
      */
     private $body;
+
     /**
      *  Default constructor
      *
@@ -44,7 +45,26 @@ class CopernicaRequest
         $this->headers = new NormalizedHeaders(apache_request_headers());
 
         // Copernica always send out requests with a digest header, if it is missing, something is wrong
-        if (!$this->headers->hasHeader('digest')) throw new \Exception("Digest header is missing");
+        if (!$this->headers->hasHeader('digest'))
+            throw new \Exception("Digest header is missing");
+
+        // check if date header exists
+        if (!$this->headers->hasHeader('date'))
+            throw new \Exception("Date header is missing");
+
+        // get the message datetime
+        $date = new \DateTime($this->headers->getHeader('date'));
+
+        // get current datetime
+        $now = new \DateTime('now', $date->getTimezone());
+
+        // check if message is no longer than 1 minute
+        if ($now->getTimestamp() - $date->getTimestamp() > 60)
+            throw new \Exception("request older than 1 minute");
+
+        // check if Copernica header exists
+        if (!$this->headers->hasHeader('x-copernica-id'))
+            throw new \Exception("Copernica id header is missing");
 
         // new Digest instance for digest verification, Copernica request always include digest header
         $digest = new Digest($this->headers->getHeader('digest'));
@@ -65,20 +85,21 @@ class CopernicaRequest
 
         // check if the appropriate headers are included in the signature
         if (!$verifier->contains('Host'))
-            throw new Exception("Invalid signature: the Host header is not included in the signature");
+            throw new \Exception("Invalid signature: the Host header is not included in the signature");
         if (!$verifier->contains('Date'))
-            throw new Exception("Invalid signature: the Date header is not included in the signature");
+            throw new \Exception("Invalid signature: the Date header is not included in the signature");
         if (!$verifier->contains("Content-length"))
-            throw new Exception("Invalid signature: the Content-length header is not included in the signature");
+            throw new \Exception("Invalid signature: the Content-length header is not included in the signature");
         if (!$verifier->contains("Content-type"))
-            throw new Exception("Invalid signature: the Content-type header is not included in the signature");
-        if (!$verifier->contains("X-Copernica-ID", $copernicaId))
-            throw new Exception("Invalid signature: the X-Copernica-ID header is not included in the signature or has an invalid value");
+            throw new \Exception("Invalid signature: the Content-type header is not included in the signature");
         if (!$verifier->contains("Digest"))
-            throw new Exception("Invalid signature: the Digest header is not included in the signature");
+            throw new \Exception("Invalid signature: the Digest header is not included in the signature");
+        if (!$verifier->contains("nonce"))
+            throw new \Exception("Invalid signature: nonce header is not included in the signature");
 
         // can also check if value is correct
-        if (!$verifier->contains('x-copernica-id', strval($copernicaId))) throw new \Exception('invalid signature: the x-copernica-id header is not included in the signature or has an invalid value');
+        if (!$verifier->contains('x-copernica-id', $copernicaId))
+            throw new \Exception('invalid signature: the x-copernica-id header is not included in the signature or has an invalid value');
 
         // // check if the key-id refers to a key issued by Copernica
         if (!preg_match('/\.copernica\.com$/', $verifier->keyId())) throw new \Exception("call is not signed by copernica.com (but by someone else)");
