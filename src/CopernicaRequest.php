@@ -94,8 +94,8 @@ class CopernicaRequest
             throw new \Exception("Invalid signature: the Content-type header is not included in the signature");
         if (!$verifier->contains("Digest"))
             throw new \Exception("Invalid signature: the Digest header is not included in the signature");
-        if (!$verifier->contains("nonce"))
-            throw new \Exception("Invalid signature: nonce header is not included in the signature");
+        if (!$verifier->contains("x-nonce"))
+            throw new \Exception("Invalid signature: the X-nonce header is not included in the signature");
 
         // can also check if value is correct
         if (!$verifier->contains('x-copernica-id', $copernicaId))
@@ -107,7 +107,7 @@ class CopernicaRequest
         // get the dkim-key (could throw if the key could not be located in dns, or when it was malformed)
         $key = new DkimKey($verifier->keyId());
 
-        // // verify signature correctness
+        // verify signature correctness
         if (!$verifier->verify(strval($key))) throw new \Exception('signature is invalid');
     }
 
