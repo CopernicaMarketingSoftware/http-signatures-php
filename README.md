@@ -67,11 +67,15 @@ try
     // it is highly recommended to verify digest for message content
     $digest = new Copernica\Digest($headers->getHeader('digest'));
 
-    // get request body
-    $body = file_get_contents('php://input');
+    // for other than GET requests, check if the digest matches the body
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET')
+    {
+        // get request body
+        $body = file_get_contents('php://input');
 
-    // check if digest matches
-    if (!$digest->matches($body)) throw new Exception("Digest header mismatch");
+        // check if digest matches
+        if (!$digest->matches($body)) throw new Exception("Digest header mismatch");
+    }
 
     // new verifier instance
     $verifier = new Copernica\Verifier(
