@@ -88,10 +88,6 @@ class CopernicaRequest
             throw new \Exception("Invalid signature: the Host header is not included in the signature");
         if (!$verifier->contains('Date'))
             throw new \Exception("Invalid signature: the Date header is not included in the signature");
-        if (!$verifier->contains("Content-length"))
-            throw new \Exception("Invalid signature: the Content-length header is not included in the signature");
-        if (!$verifier->contains("Content-type"))
-            throw new \Exception("Invalid signature: the Content-type header is not included in the signature");
         if (!$verifier->contains("Digest"))
             throw new \Exception("Invalid signature: the Digest header is not included in the signature");
         if (!$verifier->contains("x-nonce"))
